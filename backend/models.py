@@ -5,7 +5,7 @@ from sqlalchemy import Column, Float, Integer, String, Boolean, ForeignKey, Date
 from database import Base
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
+from sqlalchemy import UniqueConstraint
 
 # Create a class named User
 # This represents a table in database
@@ -113,6 +113,10 @@ class StudentTopicProgress(Base):
 
     __tablename__ = "student_topic_progress"
 
+    __table_args__ = (
+        UniqueConstraint("student_id", "topic_id", name="unique_student_topic"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
 
     student_id = Column(Integer, ForeignKey("users.id"))
@@ -138,10 +142,6 @@ class StudentTopicProgress(Base):
 # ----------------------------
 
 class AssessmentAttempt(Base):
-    """
-    Stores per-question attempt data for a student.
-    This feeds memory strength calculation.
-    """
 
     __tablename__ = "assessment_attempts"
 
@@ -150,17 +150,33 @@ class AssessmentAttempt(Base):
     student_id = Column(Integer, ForeignKey("users.id"))
     topic_id = Column(Integer, ForeignKey("topics.id"))
 
+    session_id = Column(String, index=True)  # 🔥 NEW
+
     question_text = Column(String, nullable=False)
-
     is_correct = Column(Boolean, nullable=False)
-
-    response_time = Column(Float)  # seconds
-
-    confidence_level = Column(String)  # confident / unsure / guessing
+    response_time = Column(Float)
+    confidence_level = Column(String)
 
     attempted_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relationships
     student = relationship("User")
     topic = relationship("Topic")
 
+class GeneratedQuestion(Base):
+
+    __tablename__ = "generated_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    topic_id = Column(Integer, ForeignKey("topics.id"))
+
+    question_text = Column(String, nullable=False)
+
+    question_type = Column(String)  
+    # mcq / understanding / trap / application
+
+    correct_answer = Column(String)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    topic = relationship("Topic")

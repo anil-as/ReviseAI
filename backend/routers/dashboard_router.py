@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime,timedelta
 import models
 from dependencies import get_db, get_current_user
+from sqlalchemy.orm import joinedload
 
 router = APIRouter(
     prefix="/dashboard",
@@ -39,9 +40,10 @@ def get_revision_dashboard(
     if current_user.role != "student":
         return {"message": "Dashboard only for students"}
 
-    progress_list = db.query(models.StudentTopicProgress).filter(
-        models.StudentTopicProgress.student_id == current_user.id
-    ).all()
+    progress_list = db.query(models.StudentTopicProgress)\
+        .options(joinedload(models.StudentTopicProgress.topic))\
+        .filter(models.StudentTopicProgress.student_id == current_user.id)\
+        .all()
 
     today = datetime.utcnow().date()
 
@@ -49,12 +51,9 @@ def get_revision_dashboard(
 
     for progress in progress_list:
 
-        topic = db.query(models.Topic).filter(
-            models.Topic.id == progress.topic_id,
-            models.Topic.is_deleted == False
-        ).first()
+        topic = progress.topic
 
-        if not topic:
+        if not topic or topic.is_deleted:
             continue
 
         next_date = progress.next_revision_date.date()
@@ -78,7 +77,6 @@ def get_revision_dashboard(
             "priority": priority
         })
 
-    # 🔥 Sort by priority, then by next revision date
     dashboard_data.sort(key=lambda x: (x["priority"], x["next_revision_date"]))
 
     return dashboard_data
@@ -101,6 +99,13 @@ def postpone_revision(
     if not progress:
         raise HTTPException(status_code=404, detail="Progress not found")
 
+    # 🔥 FIX 4 GOES HERE
+    if progress.next_revision_date < datetime.utcnow():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot postpone overdue revision"
+        )
+
     # 🔥 LIMIT CHECK
     if progress.postpone_count >= 2:
         raise HTTPException(
@@ -114,7 +119,7 @@ def postpone_revision(
     # Increase postpone count
     progress.postpone_count += 1
 
-    # 🔥 Optional soft penalty (very mild)
+    # Optional soft penalty
     progress.current_interval = max(1, int(progress.current_interval * 0.95))
 
     db.commit()

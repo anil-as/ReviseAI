@@ -79,6 +79,7 @@ class TopicResponse(BaseModel):
 
 class AssessmentCreate(BaseModel):
     topic_id: int
+    session_id: str  
     question_text: str
     is_correct: bool
     response_time: float

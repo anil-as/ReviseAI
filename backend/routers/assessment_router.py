@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import models
 from schemas import AssessmentCreate, AssessmentResponse
@@ -27,14 +27,14 @@ def create_assessment(
         raise HTTPException(status_code=404, detail="Topic not found")
 
     attempt = models.AssessmentAttempt(
-        student_id=current_user.id,
-        topic_id=data.topic_id,
-        question_text=data.question_text,
-        is_correct=data.is_correct,
-        response_time=data.response_time,
-        confidence_level=data.confidence_level,
-        attempted_at=datetime.utcnow()
-    )
+    student_id=current_user.id,
+    topic_id=data.topic_id,
+    session_id=data.session_id,  
+    question_text=data.question_text,
+    is_correct=data.is_correct,
+    response_time=data.response_time,
+    confidence_level=data.confidence_level,
+)
 
     db.add(attempt)
     db.commit()
@@ -42,9 +42,10 @@ def create_assessment(
 
     return attempt
 
-@router.post("/finalize/{topic_id}")
+@router.post("/finalize/{topic_id}/{session_id}")
 def finalize_assessment(
     topic_id: int,
+    session_id: str,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -52,7 +53,8 @@ def finalize_assessment(
     # Get all attempts for this topic by student
     attempts = db.query(models.AssessmentAttempt).filter(
         models.AssessmentAttempt.topic_id == topic_id,
-        models.AssessmentAttempt.student_id == current_user.id
+        models.AssessmentAttempt.student_id == current_user.id,
+        models.AssessmentAttempt.session_id == session_id
     ).all()
 
     if not attempts:
