@@ -1,5 +1,5 @@
 # Column → used to define table columns
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Float, Integer, String, Boolean, ForeignKey, DateTime
 
 # Base → imported from database.py
 from database import Base
@@ -75,3 +75,92 @@ class Subject(Base):
 
     # Relationship to access creator info
     owner = relationship("User")
+
+# ----------------------------
+# TOPIC MODEL
+# ----------------------------
+
+class Topic(Base):
+
+    __tablename__ = "topics"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    title = Column(String, nullable=False)
+
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+
+    difficulty_level = Column(Integer, default=1)
+
+    file_path = Column(String, nullable=True)
+    extracted_text = Column(String, nullable=True)
+
+    is_deleted = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    subject = relationship("Subject")
+
+# ----------------------------
+# STUDENT TOPIC PROGRESS MODEL
+# ----------------------------
+
+class StudentTopicProgress(Base):
+    """
+    Tracks memory state of a topic for each student.
+    This is the cognitive brain of the system.
+    """
+
+    __tablename__ = "student_topic_progress"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    student_id = Column(Integer, ForeignKey("users.id"))
+    topic_id = Column(Integer, ForeignKey("topics.id"))
+
+    memory_strength = Column(Float, default=0.5)
+
+    current_interval = Column(Integer, default=1)  # in days
+
+    last_revision_date = Column(DateTime, nullable=True)
+    next_revision_date = Column(DateTime, nullable=True)
+
+    postpone_count = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    student = relationship("User")
+    topic = relationship("Topic")
+
+# ----------------------------
+# ASSESSMENT ATTEMPT MODEL
+# ----------------------------
+
+class AssessmentAttempt(Base):
+    """
+    Stores per-question attempt data for a student.
+    This feeds memory strength calculation.
+    """
+
+    __tablename__ = "assessment_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    student_id = Column(Integer, ForeignKey("users.id"))
+    topic_id = Column(Integer, ForeignKey("topics.id"))
+
+    question_text = Column(String, nullable=False)
+
+    is_correct = Column(Boolean, nullable=False)
+
+    response_time = Column(Float)  # seconds
+
+    confidence_level = Column(String)  # confident / unsure / guessing
+
+    attempted_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    student = relationship("User")
+    topic = relationship("Topic")
+

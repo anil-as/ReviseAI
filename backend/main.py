@@ -7,6 +7,9 @@ from routers.auth_router import router as auth_router
 from routers.dashboard_router import router as dashboard_router
 from routers.user_router import router as user_router
 from routers.subject_router import router as subject_router
+from routers.enrollment_router import router as enrollment_router
+from routers.topic_router import router as topic_router
+from routers.assessment_router import router as assessment_router
 
 # create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -28,7 +31,9 @@ app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(user_router)
 app.include_router(subject_router)
-
+app.include_router(enrollment_router)
+app.include_router(topic_router)
+app.include_router(assessment_router)
 
 @app.get("/")
 def root():
