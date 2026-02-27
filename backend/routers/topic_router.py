@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from PyPDF2 import PdfReader
 import os
 import shutil
+import re
 
 import models
 from schemas import TopicResponse
@@ -38,20 +39,23 @@ def create_topic(
     if subject.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Save file locally
+    # Save file locally with a safe filename
     upload_dir = "uploads"
     os.makedirs(upload_dir, exist_ok=True)
-
-    file_location = os.path.join(upload_dir, file.filename)
+    safe_filename = re.sub(r'[^\w\-_\. ]', '_', file.filename or "upload.pdf")
+    file_location = os.path.join(upload_dir, safe_filename)
 
     with open(file_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Extract text from PDF
+    # Extract text from PDF (best-effort, don't crash if PDF is unreadable)
     extracted_text = ""
-    reader = PdfReader(file_location)
-    for page in reader.pages:
-        extracted_text += page.extract_text() or ""
+    try:
+        reader = PdfReader(file_location)
+        for page in reader.pages:
+            extracted_text += page.extract_text() or ""
+    except Exception:
+        extracted_text = ""
 
     new_topic = models.Topic(
         title=title,
@@ -179,6 +183,7 @@ def update_topic(
 @router.delete("/{topic_id}")
 def delete_topic(
     topic_id: int,
+    clear_data: bool = False,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -199,6 +204,12 @@ def delete_topic(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     topic.is_deleted = True
+
+    if clear_data:
+        db.query(models.StudentTopicProgress).filter(models.StudentTopicProgress.topic_id == topic_id).delete()
+        db.query(models.AssessmentAttempt).filter(models.AssessmentAttempt.topic_id == topic_id).delete()
+        db.query(models.GeneratedQuestion).filter(models.GeneratedQuestion.topic_id == topic_id).delete()
+
     db.commit()
 
-    return {"message": "Topic deleted successfully"}
+    return {"message": "Topic deleted successfully", "cleared_data": clear_data}

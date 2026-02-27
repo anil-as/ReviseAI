@@ -68,13 +68,44 @@ def get_public_subjects(
     current_user = Depends(get_current_user)
 ):
     """
-    Returns instructor-created public subjects.
+    Returns all instructor-created public subjects.
+    Used by instructors / admin only. Students should use /enrolled.
     """
 
     subjects = db.query(models.Subject).filter(
         models.Subject.is_public == True,
         models.Subject.is_deleted == False
     ).all()
+
+    return subjects
+
+
+# ----------------------------
+# GET ENROLLED SUBJECTS (Student)
+# ----------------------------
+@router.get("/enrolled", response_model=list[SubjectResponse])
+def get_enrolled_subjects(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Returns public subjects the current student is APPROVED into.
+    Students should use this instead of /public.
+    """
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Students only")
+
+    subjects = (
+        db.query(models.Subject)
+        .join(models.Enrollment, models.Enrollment.subject_id == models.Subject.id)
+        .filter(
+            models.Enrollment.student_id == current_user.id,
+            models.Enrollment.status == "approved",
+            models.Subject.is_public == True,
+            models.Subject.is_deleted == False,
+        )
+        .all()
+    )
 
     return subjects
 

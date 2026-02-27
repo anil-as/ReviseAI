@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2961FF"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+  </defs>
+  
+  <rect width="120" height="120" rx="28" fill="url(#aiGradient)"/>
+  
+  <!-- Infinity / Open Book -->
+  <path d="M25 60 C 25 35, 55 45, 60 60 C 65 45, 95 35, 95 60 C 95 85, 65 75, 60 60 C 55 75, 25 85, 25 60 Z" fill="none" stroke="#ffffff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+  
+  <!-- AI Spark -->
+  <path d="M 60 30 Q 60 42 72 42 Q 60 42 60 54 Q 60 42 48 42 Q 60 42 60 30 Z" fill="url(#sparkGrad)"/>
+</svg>

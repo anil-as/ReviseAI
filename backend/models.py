@@ -37,6 +37,10 @@ class User(Base):
     role = Column(String, nullable=False)
     # student or instructor
 
+    # Extended profile fields (optional, set after registration)
+    institution = Column(String, nullable=True)
+    admission_number = Column(String, nullable=True)
+
     # profile_completed column
     profile_completed = Column(Boolean, default=False)
     # Boolean → True / False
@@ -79,6 +83,36 @@ class Subject(Base):
 # ----------------------------
 # TOPIC MODEL
 # ----------------------------
+
+# ----------------------------
+# ENROLLMENT MODEL
+# ----------------------------
+
+class Enrollment(Base):
+    """
+    Tracks student enrollment requests and approvals for public subjects.
+    """
+    __tablename__ = "enrollments"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    student_id = Column(Integer, ForeignKey("users.id"))
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+
+    # Student details submitted at enrollment time
+    student_name = Column(String, nullable=True)
+    institution = Column(String, nullable=True)
+    admission_number = Column(String, nullable=True)
+
+    # pending | approved | rejected
+    status = Column(String, default="pending")
+
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    approved_at = Column(DateTime, nullable=True)
+
+    student = relationship("User", foreign_keys=[student_id])
+    subject = relationship("Subject")
+
 
 class Topic(Base):
 
@@ -150,9 +184,12 @@ class AssessmentAttempt(Base):
     student_id = Column(Integer, ForeignKey("users.id"))
     topic_id = Column(Integer, ForeignKey("topics.id"))
 
-    session_id = Column(String, index=True)  # 🔥 NEW
+    session_id = Column(String, index=True)
 
     question_text = Column(String, nullable=False)
+    question_type = Column(String, nullable=True)   # mcq | true_false | wh_mcq | statement_mcq
+    correct_answer = Column(String, nullable=True)  # the right answer
+    selected_answer = Column(String, nullable=True) # what the student chose
     is_correct = Column(Boolean, nullable=False)
     response_time = Column(Float)
     confidence_level = Column(String)
@@ -180,3 +217,38 @@ class GeneratedQuestion(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     topic = relationship("Topic")
+
+
+# ----------------------------
+# CALENDAR EVENT MODEL
+# ----------------------------
+class CalendarEvent(Base):
+    """User-created calendar markers/plans (personal, for any role)."""
+    __tablename__ = "calendar_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    date = Column(String, nullable=False)    # ISO date "2026-02-28"
+    title = Column(String, nullable=False)
+    color = Column(String, default="#6366f1")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User")
+
+
+# ----------------------------
+# CHAT MESSAGE MODEL
+# ----------------------------
+class ChatMessage(Base):
+    """Per-subject chat messages between enrolled students and instructor."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(String, nullable=False)
+    is_deleted = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sender = relationship("User")
+    subject = relationship("Subject")
