@@ -89,13 +89,13 @@ class EnrollmentResponse(BaseModel):
 
 class TopicCreate(BaseModel):
     title: str
-    difficulty_level: int = 1
+    topic_type: str = "theory"
 
 
 class TopicResponse(BaseModel):
     id: int
     title: str
-    difficulty_level: int
+    topic_type: str
     subject_id: int
     file_path: Optional[str] = None
     created_at: datetime

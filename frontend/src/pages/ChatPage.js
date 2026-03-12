@@ -16,7 +16,6 @@ function ChatPage() {
     const [loading, setLoading] = useState(false);
     const [subLoading, setSubLoading] = useState(true);
     const [myRole, setMyRole] = useState("student");
-    const [myId, setMyId] = useState(null);
     const bottomRef = useRef(null);
     const pollRef = useRef(null);
 
@@ -24,7 +23,7 @@ function ChatPage() {
         document.title = "Chat — ReviseAI";
         try {
             const t = localStorage.getItem("token");
-            if (t) { const d = jwtDecode(t); setMyRole(d.role); setMyId(d.sub || d.user_id || d.id); }
+            if (t) { const d = jwtDecode(t); setMyRole(d.role); }
         } catch { }
     }, []);
 

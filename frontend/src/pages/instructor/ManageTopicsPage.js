@@ -8,10 +8,9 @@ import { getTopics, createTopic, updateTopic, deleteTopic } from "../../services
 import { useToast } from "../../components/Toast";
 import { getErrorMessage } from "../../services/errorUtils";
 
-const DIFF_MAP = {
-    1: { label: "Easy", cls: "badge badge-easy" },
-    2: { label: "Medium", cls: "badge badge-medium" },
-    3: { label: "Hard", cls: "badge badge-hard" },
+const TYPE_MAP = {
+    theory: { label: "Theory / General", cls: "badge badge-easy" },
+    coding: { label: "Programming / Coding", cls: "badge badge-hard" },
 };
 
 function ManageTopicsPage() {
@@ -22,12 +21,12 @@ function ManageTopicsPage() {
 
     // Create modal
     const [createModal, setCreateModal] = useState(false);
-    const [createForm, setCreateForm] = useState({ title: "", difficulty_level: 1, file: null });
+    const [createForm, setCreateForm] = useState({ title: "", topic_type: "theory", file: null });
     const [saving, setSaving] = useState(false);
 
     // Edit modal
     const [editModal, setEditModal] = useState(false);
-    const [editForm, setEditForm] = useState({ id: null, title: "", difficulty_level: 1 });
+    const [editForm, setEditForm] = useState({ id: null, title: "", topic_type: "theory" });
     const [editSaving, setEditSaving] = useState(false);
 
     // Delete Confirm Modal
@@ -41,6 +40,7 @@ function ManageTopicsPage() {
 
     useEffect(() => {
         document.title = "Manage Topics — ReviseAI";
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         load();
     }, [subjectId]);
 
@@ -51,13 +51,13 @@ function ManageTopicsPage() {
         setSaving(true);
         const fd = new FormData();
         fd.append("title", createForm.title);
-        fd.append("difficulty_level", createForm.difficulty_level);
+        fd.append("topic_type", createForm.topic_type);
         fd.append("file", createForm.file);
         try {
             await createTopic(subjectId, fd);
             toast("Topic uploaded!", "success");
             setCreateModal(false);
-            setCreateForm({ title: "", difficulty_level: 1, file: null });
+            setCreateForm({ title: "", topic_type: "theory", file: null });
             load();
         } catch (err) { toast(getErrorMessage(err, "Upload failed"), "error"); }
         finally { setSaving(false); }
@@ -65,7 +65,7 @@ function ManageTopicsPage() {
 
     // ── Edit ────────────────────────────────────────
     const openEdit = (t) => {
-        setEditForm({ id: t.id, title: t.title, difficulty_level: t.difficulty_level });
+        setEditForm({ id: t.id, title: t.title, topic_type: t.topic_type || "theory" });
         setEditModal(true);
     };
 
@@ -74,7 +74,7 @@ function ManageTopicsPage() {
         if (!editForm.title.trim()) { toast("Title cannot be empty", "warning"); return; }
         setEditSaving(true);
         try {
-            await updateTopic(editForm.id, { title: editForm.title.trim(), difficulty_level: editForm.difficulty_level });
+            await updateTopic(editForm.id, { title: editForm.title.trim(), topic_type: editForm.topic_type });
             toast("Topic updated!", "success");
             setEditModal(false);
             load();
@@ -134,7 +134,7 @@ function ManageTopicsPage() {
             ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {topics.map(t => {
-                        const diff = DIFF_MAP[t.difficulty_level] || DIFF_MAP[1];
+                        const tType = TYPE_MAP[t.topic_type] || TYPE_MAP.theory;
                         return (
                             <article
                                 key={t.id}
@@ -154,7 +154,7 @@ function ManageTopicsPage() {
                                         {t.title}
                                     </h3>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                        <span className={diff.cls}>{diff.label}</span>
+                                        <span className={tType.cls}>{tType.label}</span>
                                         <span style={{ fontSize: "0.73rem", color: "var(--text-muted)" }}>
                                             📅 {new Date(t.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                                         </span>
@@ -232,6 +232,17 @@ function ManageTopicsPage() {
                             required
                             autoFocus
                         />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="topic-type">Topic Type</label>
+                        <select
+                            id="topic-type"
+                            value={editForm.topic_type}
+                            onChange={e => setEditForm({ ...editForm, topic_type: e.target.value })}
+                        >
+                            <option value="theory">📖 Theory / General</option>
+                            <option value="coding">🖥️ Programming / Coding</option>
+                        </select>
                     </div>
                     <div className="form-group">
                         <label className="form-label" htmlFor="edit-topic-diff">Difficulty</label>

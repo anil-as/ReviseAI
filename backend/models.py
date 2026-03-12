@@ -124,7 +124,7 @@ class Topic(Base):
 
     subject_id = Column(Integer, ForeignKey("subjects.id"))
 
-    difficulty_level = Column(Integer, default=1)
+    topic_type = Column(String, default="theory")
 
     file_path = Column(String, nullable=True)
     extracted_text = Column(String, nullable=True)

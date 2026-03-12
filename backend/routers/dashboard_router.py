@@ -73,7 +73,9 @@ def get_revision_dashboard(
             "topic_title": topic.title,
             "topic_file_path": topic.file_path,
             "memory_strength": progress.memory_strength,
+            "last_revision_date": progress.last_revision_date,
             "next_revision_date": progress.next_revision_date,
+            "postpone_count": progress.postpone_count,
             "status": status,
             "priority": priority
         })
@@ -130,6 +132,29 @@ def postpone_revision(
         "new_revision_date": progress.next_revision_date,
         "postpone_count": progress.postpone_count
     }
+
+
+@router.delete("/revisions/{topic_id}")
+def delete_revision(
+    topic_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students can delete revisions")
+
+    progress = db.query(models.StudentTopicProgress).filter(
+        models.StudentTopicProgress.topic_id == topic_id,
+        models.StudentTopicProgress.student_id == current_user.id
+    ).first()
+
+    if not progress:
+        raise HTTPException(status_code=404, detail="Revision progress not found")
+
+    db.delete(progress)
+    db.commit()
+
+    return {"message": "Revision permanently removed from your schedule"}
 
 
 # ----------------------------

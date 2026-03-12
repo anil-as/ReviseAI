@@ -8,7 +8,10 @@ function Navbar({ onThemeToggle, theme }) {
     const [userName, setUserName] = useState('');
     const [scrolled, setScrolled] = useState(false);
 
-    useEffect(() => {
+    const readName = () => {
+        // Prefer the always-up-to-date 'user_name' key over the JWT claim
+        const cached = localStorage.getItem('user_name');
+        if (cached) { setUserName(cached); return; }
         try {
             const token = localStorage.getItem('token');
             if (token) {
@@ -16,6 +19,14 @@ function Navbar({ onThemeToggle, theme }) {
                 setUserName(decoded.name || decoded.sub || 'User');
             }
         } catch { }
+    };
+
+    useEffect(() => {
+        readName();
+        // Re-read whenever ProfilePage fires 'user-updated'
+        window.addEventListener('user-updated', readName);
+        return () => window.removeEventListener('user-updated', readName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {

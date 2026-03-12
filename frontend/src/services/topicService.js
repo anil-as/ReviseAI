@@ -1,15 +1,9 @@
 import API from './api';
 
 export const createTopic = (subjectId, formData) => {
-    // Backend reads `title` and `difficulty_level` as query params (not form body)
-    const title = formData.get('title');
-    const difficulty_level = formData.get('difficulty_level');
-    // Keep only the file in the FormData
-    const fileOnly = new FormData();
-    fileOnly.append('file', formData.get('file'));
-    return API.post(`/topics/${subjectId}`, fileOnly, {
+    // Backend reads `title`, `topic_type`, and `file` as Form data
+    return API.post(`/topics/${subjectId}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        params: { title, difficulty_level },
     });
 };
 

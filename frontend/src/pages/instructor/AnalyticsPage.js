@@ -181,6 +181,7 @@ function AnalyticsPage() {
             } catch { } finally { setSubLoading(false); }
         };
         load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     /* ── Load analytics when subject or student changes ── */
@@ -200,6 +201,7 @@ function AnalyticsPage() {
             finally { setLoading(false); }
         };
         fetch();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedId, selectedStudent]);
 
     /* ── Load student list when subject changes ── */

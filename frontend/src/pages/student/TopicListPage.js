@@ -9,10 +9,9 @@ import { getTopics, createTopic, deleteTopic } from "../../services/topicService
 import { useToast } from "../../components/Toast";
 import { getErrorMessage } from "../../services/errorUtils";
 
-const DIFF_MAP = {
-    1: { label: "Easy", cls: "badge badge-easy" },
-    2: { label: "Medium", cls: "badge badge-medium" },
-    3: { label: "Hard", cls: "badge badge-hard" },
+const TYPE_MAP = {
+    theory: { label: "Theory / General", cls: "badge badge-easy" },
+    coding: { label: "Programming / Coding", cls: "badge badge-hard" },
 };
 
 function TopicListPage() {
@@ -21,7 +20,7 @@ function TopicListPage() {
     const [topics, setTopics] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modal, setModal] = useState(false);
-    const [form, setForm] = useState({ title: "", difficulty_level: 1, file: null });
+    const [form, setForm] = useState({ title: "", topic_type: "theory", file: null });
     const [saving, setSaving] = useState(false);
 
     // PDF Viewer State
@@ -44,6 +43,7 @@ function TopicListPage() {
 
     useEffect(() => {
         document.title = "Topics — ReviseAI";
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         load();
     }, [subjectId]);
 
@@ -53,13 +53,13 @@ function TopicListPage() {
         setSaving(true);
         const fd = new FormData();
         fd.append("title", form.title);
-        fd.append("difficulty_level", form.difficulty_level);
+        fd.append("topic_type", form.topic_type);
         fd.append("file", form.file);
         try {
             await createTopic(subjectId, fd);
             toast("Topic uploaded!", "success");
             setModal(false);
-            setForm({ title: "", difficulty_level: 1, file: null });
+            setForm({ title: "", topic_type: "theory", file: null });
             load();
         } catch (err) { toast(getErrorMessage(err, "Upload failed"), "error"); }
         finally { setSaving(false); }
@@ -118,7 +118,7 @@ function TopicListPage() {
             ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     {topics.map(topic => {
-                        const diff = DIFF_MAP[topic.difficulty_level] || DIFF_MAP[1];
+                        const tType = TYPE_MAP[topic.topic_type] || TYPE_MAP.theory;
                         return (
                             <article
                                 key={topic.id}
@@ -134,7 +134,7 @@ function TopicListPage() {
                                         {topic.title}
                                     </h3>
                                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                        <span className={diff.cls}>{diff.label}</span>
+                                        <span className={tType.cls}>{tType.label}</span>
                                         <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                                             📅 {new Date(topic.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                                         </span>
@@ -185,15 +185,14 @@ function TopicListPage() {
                         />
                     </div>
                     <div className="form-group">
-                        <label className="form-label" htmlFor="topic-difficulty">Difficulty level</label>
+                        <label className="form-label" htmlFor="topic-type">Topic Type</label>
                         <select
-                            id="topic-difficulty"
-                            value={form.difficulty_level}
-                            onChange={e => setForm({ ...form, difficulty_level: parseInt(e.target.value) })}
+                            id="topic-type"
+                            value={form.topic_type}
+                            onChange={e => setForm({ ...form, topic_type: e.target.value })}
                         >
-                            <option value={1}>Easy</option>
-                            <option value={2}>Medium</option>
-                            <option value={3}>Hard</option>
+                            <option value="theory">📖 Theory / General</option>
+                            <option value="coding">🖥️ Programming / Coding</option>
                         </select>
                     </div>
                     <div className="form-group">

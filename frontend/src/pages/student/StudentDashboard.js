@@ -38,10 +38,10 @@ function RevisionCard({ item, onPostpone, isPostponing, onViewPdf }) {
                         Memory
                     </span>
                     <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--color-primary)" }}>
-                        {Math.round(item.memory_strength * 100)}%
+                        {!item.last_revision_date ? '—' : `${Math.round(item.memory_strength * 100)}%`}
                     </span>
                 </div>
-                <MemoryBar value={item.memory_strength} />
+                <MemoryBar value={item.memory_strength} isNew={!item.last_revision_date} />
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>

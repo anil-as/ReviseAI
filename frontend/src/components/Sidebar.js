@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 const studentLinks = [
     { to: '/student', label: 'Dashboard', icon: 'fi fi-rr-home' },
     { to: '/student/subjects', label: 'My Subjects', icon: 'fi fi-rr-book-alt' },
+    { to: '/student/manage-revisions', label: 'Manage Revisions', icon: 'fi fi-rr-clipboard-list-check' },
     { to: '/student/enroll', label: 'Explore', icon: 'fi fi-rr-search' },
     { to: '/chat', label: 'Chat', icon: 'fi fi-rr-comment' },
     { to: '/profile', label: 'Profile', icon: 'fi fi-rr-user' },

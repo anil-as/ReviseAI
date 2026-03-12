@@ -4,9 +4,10 @@ import DashboardLayout from "../../components/DashboardLayout";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import MemoryBar from "../../components/MemoryBar";
 import { generateQuestions } from "../../services/questionService";
-import { createAttempt, finalizeAssessment } from "../../services/assessmentService";
+import { createAttempt, finalizeAssessment, evaluateAnswer } from "../../services/assessmentService";
 import { useToast } from "../../components/Toast";
 import { getErrorMessage } from "../../services/errorUtils";
+import Editor from "@monaco-editor/react";
 
 const SESSION_ID = () => `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
@@ -16,6 +17,7 @@ const Q_TYPE_META = {
     true_false: { label: "True / False", icon: "fi fi-rr-scale", color: "#0ea5e9", bg: "#e0f2fe" },
     fill_blank: { label: "Fill in the Blank", icon: "fi fi-rr-edit", color: "#8b5cf6", bg: "#ede9fe" },
     short_answer: { label: "Short Answer", icon: "fi fi-rr-comment-alt", color: "#10b981", bg: "#d1fae5" },
+    long_answer: { label: "Long Answer", icon: "fi fi-rr-document", color: "#0d9488", bg: "#ccfbf1" },
     diagram_question: { label: "Diagram / Flowchart", icon: "fi fi-rr-picture", color: "#f59e0b", bg: "#fef3c7" },
     figure_explain: { label: "Figure Explanation", icon: "fi fi-rr-picture", color: "#f59e0b", bg: "#fef3c7" },
     code_question: { label: "Code Challenge", icon: "fi fi-rr-code-simple", color: "#1d4ed8", bg: "#dbeafe" },
@@ -86,8 +88,6 @@ function AssessmentPage() {
         if (open) {
             setEvaluating(true);
             try {
-                // Call NLP endpoint to check semantic correctness
-                const { evaluateAnswer } = require("../../services/assessmentService");
                 const res = await evaluateAnswer({
                     question: current.question,
                     correct_answer: current.answer,
@@ -287,7 +287,7 @@ function AssessmentPage() {
 
     return (
         <DashboardLayout>
-            <div style={{ maxWidth: 920, margin: "0 auto" }}>
+            <div style={{ maxWidth: hasLeftMedia ? 1300 : 920, transition: "max-width 0.3s ease", margin: "0 auto" }}>
 
                 {/* ── Progress bar ── */}
                 <div style={{ marginBottom: 24 }}>
@@ -313,8 +313,8 @@ function AssessmentPage() {
                 <div style={{
                     display: "grid",
                     gridTemplateColumns: hasLeftMedia
-                        ? (phase === "revealed" ? "1.2fr 1.5fr 300px" : "1.2fr 1.5fr")
-                        : (phase === "revealed" ? "1fr 300px" : "1fr"),
+                        ? (phase === "revealed" ? "1fr 1.2fr 280px" : "1fr 1.2fr")
+                        : (phase === "revealed" ? "1fr 280px" : "1fr"),
                     gap: 24,
                     alignItems: "start",
                 }}>
@@ -322,7 +322,7 @@ function AssessmentPage() {
                     {/* ══ LEFT MEDIA PANE (Code / Image) ══ */}
                     {hasLeftMedia && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                            {/* ── Figure SVG Rendering ── */}
+                            {/* ── Figure SVG / Image Rendering ── */}
                             {current.figure_svg && (
                                 <div className="card animate-scaleIn" style={{
                                     padding: "24px",
@@ -330,14 +330,20 @@ function AssessmentPage() {
                                     overflow: "hidden",
                                     background: "var(--bg-surface-2)"
                                 }}>
-                                    <div
-                                        dangerouslySetInnerHTML={{ __html: current.figure_svg }}
-                                        style={{
-                                            width: "100%", maxHeight: 350,
-                                            display: "flex", justifyContent: "center", alignItems: "center"
-                                        }}
-                                        className="figure-svg-container"
-                                    />
+                                    {current.figure_svg.trim().startsWith("http") ? (
+                                        <img src={current.figure_svg.trim()} alt="Question diagram" style={{
+                                            maxWidth: "100%", maxHeight: 350, objectFit: "contain", borderRadius: 8
+                                        }} />
+                                    ) : (
+                                        <div
+                                            dangerouslySetInnerHTML={{ __html: current.figure_svg }}
+                                            style={{
+                                                width: "100%", maxHeight: 350,
+                                                display: "flex", justifyContent: "center", alignItems: "center"
+                                            }}
+                                            className="figure-svg-container"
+                                        />
+                                    )}
                                 </div>
                             )}
 
@@ -361,17 +367,26 @@ function AssessmentPage() {
 
                             {/* ── Code Blocks ── */}
                             {codeBlocks.map((code, i) => (
-                                <pre key={i} className="card animate-scaleIn" style={{
-                                    background: "var(--bg-surface-2)",
+                                <div key={i} className="card animate-scaleIn" style={{
+                                    background: "#1e1e1e",
                                     padding: "20px", fontSize: "0.9rem",
-                                    overflowX: "auto", margin: 0,
-                                    fontFamily: "'Fira Code', 'Courier New', monospace",
-                                    lineHeight: 1.6,
-                                    color: "var(--text-primary)",
+                                    overflow: "hidden", margin: 0,
                                     border: "1px solid var(--border-color)",
-                                    whiteSpace: "pre-wrap",
-                                    wordBreak: "break-word"
-                                }}><code>{code}</code></pre>
+                                }}>
+                                    <Editor
+                                        height="380px"
+                                        defaultLanguage="javascript"
+                                        theme="vs-dark"
+                                        value={code}
+                                        options={{
+                                            readOnly: true,
+                                            minimap: { enabled: false },
+                                            scrollBeyondLastLine: false,
+                                            fontSize: 14,
+                                            fontFamily: "'Fira Code', 'Courier New', monospace"
+                                        }}
+                                    />
+                                </div>
                             ))}
                         </div>
                     )}
@@ -450,20 +465,43 @@ function AssessmentPage() {
                                 <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                                     Your Answer
                                 </label>
-                                <textarea
-                                    disabled={phase === "revealed"}
-                                    value={selected || ""}
-                                    onChange={e => setSelected(e.target.value)}
-                                    placeholder="Write your answer here…"
-                                    rows={5}
-                                    style={{
-                                        width: "100%", padding: "14px 16px", borderRadius: 12,
-                                        border: `2px solid ${phase === "revealed" ? "var(--border-color)" : "var(--color-primary)"}`,
-                                        background: "var(--bg-surface-2)",
-                                        fontSize: "0.97rem", lineHeight: 1.65,
-                                        color: "var(--text-primary)", resize: "vertical", fontFamily: "inherit",
-                                    }}
-                                />
+                                {current.type === "code_question" ? (
+                                    <div style={{
+                                        borderRadius: 12, overflow: "hidden",
+                                        border: `2px solid ${phase === "revealed" ? "var(--border-color)" : "var(--color-primary)"}`
+                                    }}>
+                                        <Editor
+                                            height="380px"
+                                            defaultLanguage="javascript"
+                                            theme="vs-dark"
+                                            value={selected || ""}
+                                            onChange={val => setSelected(val)}
+                                            options={{
+                                                readOnly: phase === "revealed",
+                                                minimap: { enabled: false },
+                                                scrollBeyondLastLine: false,
+                                                fontSize: 15,
+                                                fontFamily: "'Fira Code', 'Courier New', monospace",
+                                                padding: { top: 16 }
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <textarea
+                                        disabled={phase === "revealed"}
+                                        value={selected || ""}
+                                        onChange={e => setSelected(e.target.value)}
+                                        placeholder="Write your answer here…"
+                                        rows={5}
+                                        style={{
+                                            width: "100%", padding: "14px 16px", borderRadius: 12,
+                                            border: `2px solid ${phase === "revealed" ? "var(--border-color)" : "var(--color-primary)"}`,
+                                            background: "var(--bg-surface-2)",
+                                            fontSize: "0.97rem", lineHeight: 1.65,
+                                            color: "var(--text-primary)", resize: "vertical", fontFamily: "inherit",
+                                        }}
+                                    />
+                                )}
                             </div>
                         )}
 
@@ -495,7 +533,31 @@ function AssessmentPage() {
                                     <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#15803d", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                                         ✓ Model Answer
                                     </div>
-                                    <div style={{ fontSize: "0.95rem", color: "var(--text-primary)", lineHeight: 1.65 }}>{current.answer}</div>
+                                    {current.type === "code_question" ? (
+                                        <div style={{
+                                            borderRadius: 8, overflow: "hidden",
+                                            border: "1px solid rgba(34,197,94,0.3)"
+                                        }}>
+                                            <Editor
+                                                height="200px"
+                                                defaultLanguage="javascript"
+                                                theme="vs-dark"
+                                                value={current.answer || ""}
+                                                options={{
+                                                    readOnly: true,
+                                                    minimap: { enabled: false },
+                                                    scrollBeyondLastLine: false,
+                                                    fontSize: 14,
+                                                    fontFamily: "'Fira Code', 'Courier New', monospace",
+                                                    padding: { top: 12 }
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: "0.95rem", color: "var(--text-primary)", lineHeight: 1.65 }}>
+                                            {current.answer}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

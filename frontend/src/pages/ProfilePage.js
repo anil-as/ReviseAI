@@ -35,6 +35,7 @@ function ProfilePage() {
             } catch (err) { toast(getErrorMessage(err, "Failed to load profile"), "error"); }
             finally { setLoading(false); }
         })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleChange = (field) => (e) => {
@@ -51,6 +52,9 @@ function ProfilePage() {
                 admission_number: form.admission_number.trim(),
             });
             setProfile(res.data); setDirty(false); setSaved(true);
+            // Keep Navbar in sync — no page reload needed
+            localStorage.setItem('user_name', form.name.trim());
+            window.dispatchEvent(new Event('user-updated'));
             toast("✅ Profile saved!", "success");
             setTimeout(() => setSaved(false), 3000);
         } catch (err) { toast(getErrorMessage(err, "Failed to save profile"), "error"); }

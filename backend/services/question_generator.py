@@ -1,15 +1,14 @@
 """
-AI-Powered Contextual Question Generator  (v2)
-================================================
-Improvements over v1:
-  • Front-matter / ToC stripping so questions come from actual content.
-  • Topic TITLE fed into domain detection for stronger signal.
-  • 8 rich question types per domain:
-      mcq | true_false | fill_blank | short_answer |
-      figure_explain | code_question | application | cunning
-  • Prompt engineering forces specificity – no "What is the main idea?" style.
-  • Generates 12 questions (caller may trim) for better variety.
-  • NLTK fallback still works when Gemini is unavailable.
+AI-Powered Contextual Question Generator  (v3 — RAG Edition)
+=============================================================
+Improvements over v2:
+  • RAG pipeline: LangChain text chunking → FAISS in-memory index →
+    Google Embeddings semantic retrieval → top-K chunks fed to Gemini.
+  • Questions now drawn from the richest, most topically relevant
+    sections of the PDF, not just the first/last 7 000 chars.
+  • Graceful fallback to old slicing if LangChain/FAISS unavailable.
+  • All v2 improvements (domain detection, prompt engineering, NLTK
+    fallback, 8 question types) remain intact.
 """
 
 import os
@@ -26,6 +25,25 @@ from google.genai import types as genai_types
 
 # Load .env here directly — safeguards against import-order issues
 load_dotenv()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RAG dependencies — optional, graceful degradation if not installed
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    # LangChain v1.x — splitter lives in its own package
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+    from langchain_community.vectorstores import FAISS
+    _RAG_AVAILABLE = True
+except ImportError:
+    try:
+        # Older LangChain fallback
+        from langchain.text_splitter import RecursiveCharacterTextSplitter  # type: ignore
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        from langchain_community.vectorstores import FAISS
+        _RAG_AVAILABLE = True
+    except ImportError:
+        _RAG_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -218,115 +236,294 @@ def _detect_domain(text: str, title: str = "") -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 _Q_TYPE_EXPLANATIONS = """
-QUESTION TYPE DEFINITIONS — use ALL types, spread across all 12 questions:
+QUESTION TYPE DEFINITIONS:
 
-1. mcq            — Classic 4-option MCQ. Ask DIRECT questions (e.g. "What is...", "Which of...") rather than using a "complete the sentence" format. All 4 options must be plausible; only one is correct.
-2. true_false      — A precise factual statement that is either clearly True or clearly False. Options: ["True", "False"].
-3. short_answer    — An open-ended subjective question requiring a 1-3 sentence written response. YOU MUST PLACE THESE AT THE VERY END OF YOUR OUTPUT ARRAY. Options: [] (empty list). answer: the ideal model answer.
-4. diagram_question— Generate a question based on a diagram, flowchart, or visual representation. You MUST generate valid HTML-compatible SVG code representing the flowchart/diagram and place it in the `figure_svg` field. Options: [A, B, C, D] or empty for a written answer.
-5. code_question   — (FOR PROGRAMMING TOPICS) Provide an incomplete or buggy code snippet and ask the student to complete the code, fix the bug, or predict the output. Wrap code in triple backticks. Options: [A, B, C, D] or empty for written answer.
-6. application     — Present a short real-world scenario and ask which concept / law / process applies, or what would happen next. Options: [A, B, C, D].
-7. cunning         — A question designed to catch students who have only surface-level understanding. Extremely tricky, sharp, and sensible. Options: [A, B, C, D].
+OPEN-RESPONSE (4 out of {num_questions} questions MUST be these types — no options, student types own answer):
+  A. short_answer  — Tests understanding with a concise 2-4 sentence response.
+                     The `answer` field MUST be a complete model answer of at least 2 sentences using exact topic vocabulary.
+                     Example Q: "What is the role of the process control block in an OS?"
+                     Example A: "A process control block (PCB) is a data structure maintained by the OS for each process. It stores the process state, program counter, CPU registers, memory limits, and scheduling information, enabling the OS to save and restore process context during context switches."
+  B. long_answer   — Tests deep comprehension. Requires a multi-paragraph explanation (3-6 sentences minimum).
+                     The `answer` field MUST be a thorough model answer covering the concept's definition, mechanism, significance, and example.
+                     Options: [] (empty).
+                     Example Q: "Explain in detail how deadlock occurs and what conditions must ALL be satisfied simultaneously for a deadlock to arise."
+                     Example A: "Deadlock is a situation in which a set of processes are permanently blocked because each is waiting for a resource held by another. Four conditions must hold simultaneously: (1) Mutual Exclusion — resources cannot be shared; (2) Hold and Wait — a process holds resources while requesting more; (3) No Preemption — resources cannot be forcibly taken; (4) Circular Wait — a circular chain of processes each waits for a resource held by the next. Removing any one condition breaks deadlock. For example, allowing preemption lets the OS reclaim resources when needed, preventing indefinite blocking."
+
+MULTIPLE-CHOICE (up to 8 out of {num_questions} questions):
+  1. mcq            — Classic 4-option MCQ. Ask DIRECT questions (e.g. "What is...", "Which of...").
+                      ALL 4 options MUST be from the same conceptual category. MCQ ANSWERS should be a phrase (4+ words), not a single word.
+                      Bad: answer="T" | Good: answer="True, because Mutex prevents concurrent access"
+  2. true_false      — A factual statement that is True or False. Options: ["True", "False"].
+  3. diagram_question— Requires a `figure_svg` field with valid SVG code. Options: [A, B, C, D].
+  4. code_question   — (PROGRAMMING ONLY) Incomplete/buggy code snippet. Wrap in triple backticks.
+  5. application     — Real-world scenario: which concept applies? Options: [A, B, C, D].
+  6. cunning         — Catches surface-level knowledge. Uses closely related but subtly wrong options.
 """
 
 _SHARED_RULES = """
-ABSOLUTE RULES (violating any of these makes the output useless):
+ABSOLUTE RULES:
 • Every question MUST be answerable from the provided content alone.
-• Questions MUST be clearly structured, highly sensible, and meaningful. Do NOT generate unstructured or unreadable questions. 
-• NO "fill in the blanks" or simple "complete the sentence" MCQs. Formulate direct, thoughtful question prompts.
-• If quoting or showing code of ANY kind, you MUST format it properly with newlines and indentation inside triple backticks (```). DO NOT output code bunched up in a single line.
-• For programming topics, ALWAYS include a 'code_question' asking to complete an incomplete code snippet.
-• Whenever relevant, include a 'diagram_question' with a custom generated flowchart or diagram using the `figure_svg` field. The SVG must be standard, scalable, and use `currentColor`.
-• Distractors for MCQs must be EXTREMELY similar and confusing (cunning and sharp) to thoroughly test the student's mastery and prevent guessing.
-• DO NOT make the correct answer obviously different in length or format.
-• Ensure the final 1-2 questions in the JSON array are ALWAYS 'short_answer' types requiring a typed sentence response.
-• NO duplicate questions. NO two questions that test the same fact.
+• Questions MUST be clearly structured and meaningful — no unreadable or vague prompts.
+• NO single-word answers anywhere. MCQ options and answers must be phrases; open-response answers must be full sentences.
+• NO simple recall like "What does X stand for?" or "What year was Y?". Test UNDERSTANDING and APPLICATION.
+• For programming topics, ALWAYS include at least one code_question with real code.
+• For diagram questions, include valid SVG in the `figure_svg` field.
+• NO duplicate questions. NO two questions that test the same concept.
+
+SEMANTIC DEPTH RULES (most important):
+• BEFORE generating each question, identify the KEY CONCEPT being tested (from the keyword list above).
+• Questions must test the MECHANISM, REASON, or CONSEQUENCE of a concept, NOT just its name.
+  ✔ GOOD: "Why does increasing the time quantum in Round Robin scheduling increase its resemblance to FCFS?"
+  ✘ BAD:  "What is Round Robin scheduling?"
+• At least 4 of the {num_questions} questions MUST be open-response (short_answer or long_answer) requiring typed answers in the student's own words. Place these LAST in the array.
+• short_answer answers: minimum 2 complete sentences using exact topic vocabulary.
+• long_answer answers: minimum 4 sentences covering definition, mechanism, significance, and at least one example from the content.
+
+DISTRACTOR ENGINEERING FOR MCQs:
+• All options MUST be from the same conceptual family as the correct answer.
+• Use: SAME CATEGORY | COMMON CONFUSION | PARTIAL TRUTH | NUMERIC NEAR-MISS | DEFINITION SWAP
+• NEVER use generic, unrelated, or single-word distractors.
+• NEVER make the correct answer obviously different in length or format.
 """
 
 _DOMAIN_HINTS: dict[str, str] = {
-    "programming": "Include at least one code_question with a real code snippet. "
-                   "Include a cunning question about common misconceptions (e.g., pass-by-value vs ref, off-by-one). ",
-    "biology": "Use precise scientific terms. Include a figure_explain if a diagram is described. "
-               "Include a true_false about a common bio misconception.",
-    "chemistry": "Include at least one application about a reaction scenario. "
-                 "Include a fill_blank with a key chemical term blanked.",
-    "physics": "Include at least one formula-identification MCQ using symbols. "
-               "Include a cunning question that confuses two related concepts.",
-    "mathematics": "Include at least one definition MCQ and one fill_blank with a theorem.",
-    "history": "Include a cause-and-effect application question. "
-               "Include a cunning question with similar dates or names.",
-    "general": "Ensure variety across all 8 types where applicable.",
+    "programming": (
+        "Include at least one code_question with a real code snippet. "
+        "For MCQ distractors: use sibling algorithms, data structures, or closely related methods "
+        "(e.g., if answer is 'merge sort', distractors should be 'quick sort', 'heap sort', 'insertion sort'). "
+        "Include a cunning question about common misconceptions (e.g., pass-by-value vs ref, off-by-one)."
+    ),
+    "biology": (
+        "Use precise scientific terms. Include a true_false about a common bio misconception. "
+        "For MCQ distractors: use organelles/processes/molecules from the SAME biological system "
+        "(e.g., if answer is 'mitochondria', distractors are 'chloroplast', 'nucleus', 'endoplasmic reticulum')."
+    ),
+    "chemistry": (
+        "Include at least one application about a reaction scenario. "
+        "For MCQ distractors: use chemicals/processes that react similarly or belong to the same group "
+        "(e.g., if answer is 'oxidation', distractors are 'reduction', 'combustion', 'hydrolysis')."
+    ),
+    "physics": (
+        "Include at least one formula-identification MCQ using symbols. "
+        "For MCQ distractors: use related physical quantities or laws from the same branch "
+        "(e.g., if answer is 'Newton's Second Law', distractors are 'Newton's Third Law', 'Law of Conservation', 'Hooke's Law'). "
+        "Include a cunning question that confuses two related concepts."
+    ),
+    "mathematics": (
+        "Include at least one definition MCQ. "
+        "For MCQ distractors: use sibling theorems, formulas, or definitions from the same chapter "
+        "(e.g., if answer is 'Bayes Theorem', distractors are 'Law of Total Probability', 'Conditional Probability', 'Binomial Theorem')."
+    ),
+    "history": (
+        "Include a cause-and-effect application question. "
+        "For MCQ distractors: use events, figures, or dates from the same era or region. "
+        "Include a cunning question with similar dates, names, or places."
+    ),
+    "general": "Ensure variety across all 8 types. For distractors, always pick terms from the SAME conceptual family as the answer.",
 }
 
 _OUTPUT_EXAMPLE = '''
 Return ONLY a valid JSON array — no markdown fences, no prose. Example structure:
 [
-  {"question": "Which scheduling algorithm minimises average waiting time for a set of processes with known burst times?",
+  {"question": "Which scheduling algorithm minimises average waiting time for processes with known burst times?",
    "type": "mcq",
-   "options": ["FCFS", "Round Robin", "Shortest Job First", "Priority"],
-   "answer": "Shortest Job First"},
+   "options": ["First Come First Served (FCFS)", "Round Robin with fixed quantum", "Shortest Job First (SJF)", "Priority Scheduling (non-preemptive)"],
+   "answer": "Shortest Job First (SJF)"},
 
-  {"question": "Based on the flowchart provided, what condition causes the loop to terminate?",
-   "type": "diagram_question",
-   "options": ["When count equals 10", "When count is less than 0", "When count exceeds 100", "When count is exactly 5"],
-   "answer": "When count equals 10",
-   "figure_svg": "<svg viewBox=\\"0 0 100 50\\" xmlns=\\"http://www.w3.org/2000/svg\\"><path d=\\"M10 25h20M70 25h20M30 10h40M30 40h40\\" stroke=\\"currentColor\\" stroke-width=\\"2\\" fill=\\"none\\"/></svg>"},
-
-  {"question": "Complete the following Python code snippet to initialize an empty list.\\n```python\\nmy_list = _____\\n```",
-   "type": "code_question",
-   "options": ["{}", "[]", "()", "list"],
-   "answer": "[]"},
-
-  {"question": "Which of the following is NOT a necessary condition for deadlock?",
+  {"question": "Which of the following is NOT a necessary condition for deadlock to arise?",
    "type": "cunning",
-   "options": ["Mutual Exclusion", "Hold and Wait", "Preemption", "Circular Wait"],
-   "answer": "Preemption"},
+   "options": ["Mutual Exclusion — only one process can use a resource at a time", "Hold and Wait — a process holds resources while requesting more", "Preemption allowed — resources can be forcibly taken from processes", "Circular Wait — a circular chain of waiting processes exists"],
+   "answer": "Preemption allowed — resources can be forcibly taken from processes"},
 
-  {"question": "Explain in your own words why Round Robin scheduling is considered fair but may lead to high turnaround time.",
+  {"question": "Explain in your own words what differentiates preemptive scheduling from non-preemptive scheduling, and why this distinction matters for real-time systems.",
    "type": "short_answer",
    "options": [],
-   "answer": "Round Robin gives every process an equal time quantum so no process starves. However, because the CPU switches frequently, each process may spend a long time waiting for its next slice when many processes compete, leading to high turnaround time."}
+   "answer": "In preemptive scheduling, the OS can interrupt a running process mid-execution to allocate the CPU to a higher-priority process, whereas non-preemptive scheduling allows a process to run to completion once it has the CPU. This distinction is critical for real-time systems because time-sensitive tasks must be guaranteed CPU access within strict deadlines, which only preemption can ensure."},
+
+  {"question": "In detail, explain the concept of virtual memory, how it works through paging, and what problems it solves compared to physical memory management.",
+   "type": "long_answer",
+   "options": [],
+   "answer": "Virtual memory is a memory management technique that gives each process the illusion of having a large, contiguous address space independent of physical RAM. It works through paging: the virtual address space is divided into fixed-size pages, and physical memory is divided into frames of the same size. The OS maintains a page table per process that maps virtual pages to physical frames. When a process accesses a page not in RAM, a page fault occurs and the OS loads the required page from disk into a free frame. Virtual memory solves two key problems: (1) programs larger than physical RAM can run because only active pages need to be in RAM at any time; (2) process isolation is enforced since each process has its own page table, preventing one process from accessing another's memory."}
 ]
 '''
 
 
-def _build_prompt(text: str, domain: str, num_questions: int, difficulty: int, title: str) -> str:
-    difficulty_desc = {1: "Easy — test recall and basic definitions",
-                       2: "Medium — test understanding, application, and connections",
-                       3: "Hard — test analysis, edge cases, and common misconceptions"}[difficulty]
+def _extract_keywords(text: str, n: int = 20) -> list[str]:
+    """
+    Extract the top-N significant keywords from the context text using
+    TF-style scoring: prefer longer, capitalised, frequently-occurring noun
+    phrases. Used to inject focused topic terms into the Gemini prompt.
+    """
+    # Find all multi-word noun-like phrases (2-3 capitalised words) and single significant words
+    phrases = re.findall(r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2})\b', text)
+    single  = re.findall(r'\b([a-zA-Z]{5,})\b', text.lower())
+
+    # Common stopwords to filter out
+    stops = {
+        'this','that','with','from','they','have','been','will','when',
+        'which','their','there','these','those','some','such','also',
+        'each','only','other','into','over','after','before','about',
+        'used','using','called','known','based','given','defined','allows',
+        'provides','consists','referred','process','system','method',
+    }
+
+    freq: dict[str, int] = {}
+    for p in phrases:
+        key = p.strip()
+        if len(key) >= 4 and key not in stops:
+            freq[key] = freq.get(key, 0) + 2  # capitalised phrases score higher
+    for w in single:
+        if w not in stops and len(w) >= 5:
+            freq[w] = freq.get(w, 0) + 1
+
+    # Sort by frequency × length (prefer informative longer terms)
+    ranked = sorted(freq.items(), key=lambda x: x[1] * len(x[0]), reverse=True)
+    return [k for k, _ in ranked[:n]]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RAG Context Builder
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_rag_context(text: str, title: str, k: int = 5) -> str:
+    """
+    Build a high-quality context string for Gemini using a RAG pipeline:
+      1. Chunk the PDF text (3 000 chars, 300 overlap) with LangChain.
+      2. Embed chunks with Google's embedding-001 model into in-memory FAISS.
+      3. Retrieve the top-K chunks most semantically similar to the topic title.
+      4. Return the concatenated chunks as the Gemini context.
+
+    Falls back to simple front+back slicing if LangChain/FAISS unavailable.
+    """
+    if not _RAG_AVAILABLE:
+        logger.warning("RAG libraries not available — using legacy text slicing")
+        max_chars = 14000
+        if len(text) > max_chars:
+            half = max_chars // 2
+            return text[:half] + "\n\n[… content continues …]\n\n" + text[-half:]
+        return text
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        logger.warning("GEMINI_API_KEY not set — RAG embedding skipped, using slicing")
+        max_chars = 14000
+        if len(text) > max_chars:
+            half = max_chars // 2
+            return text[:half] + "\n\n[… content continues …]\n\n" + text[-half:]
+        return text
+
+    try:
+        # Step 1 — Chunk
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=3000,
+            chunk_overlap=300,
+            separators=["\n\n", "\n", ". ", " ", ""],
+        )
+        chunks = splitter.split_text(text)
+        if not chunks:
+            return text
+
+        logger.info(f"RAG: {len(chunks)} chunks created from {len(text)} chars")
+
+        # Step 2 — Embed & Index (in-memory FAISS, no disk writes)
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/embedding-001",
+            google_api_key=api_key,
+        )
+        vector_store = FAISS.from_texts(chunks, embedding=embeddings)
+
+        # Step 3 — Retrieve top-K chunks relevant to the topic title
+        query = f"{title} key concepts definitions examples applications"
+        retrieved_docs = vector_store.similarity_search(query, k=min(k, len(chunks)))
+        retrieved_chunks = [doc.page_content for doc in retrieved_docs]
+
+        context = "\n\n---\n\n".join(retrieved_chunks)
+        logger.info(
+            f"RAG context built: {len(retrieved_docs)} chunks retrieved, "
+            f"total chars = {len(context)}"
+        )
+        return context
+
+    except Exception as e:
+        logger.error(f"RAG pipeline failed ({type(e).__name__}: {e}) — falling back to slicing")
+        max_chars = 14000
+        if len(text) > max_chars:
+            half = max_chars // 2
+            return text[:half] + "\n\n[… content continues …]\n\n" + text[-half:]
+        return text
+
+
+def _build_prompt(text: str, domain: str, num_questions: int, topic_type: str, title: str) -> str:
+    type_desc = {
+        "coding": "Programming / Coding — Focus heavily on code comprehension, debugging, and real code writing.",
+        "theory": "Theory / General — Focus on conceptual understanding, mechanisms, and flowcharts.",
+    }.get(topic_type, "Theory / General")
 
     domain_hint = _DOMAIN_HINTS.get(domain, _DOMAIN_HINTS["general"])
 
-    # Trim text to token-safe size while keeping both start and end
-    max_chars = 14000
-    if len(text) > max_chars:
-        half = max_chars // 2
-        context = text[:half] + "\n\n[… content continues …]\n\n" + text[-half:]
-    else:
-        context = text
+    # Context is pre-processed by the RAG pipeline before reaching here.
+    # Soft-cap at 18 000 chars as a final safety net for very large retrievals.
+    context = text[:18000] if len(text) > 18000 else text
+
+    # ── Keyword extraction: focus Gemini on the most significant topic terms ──
+    keywords = _extract_keywords(context, n=20)
+    keyword_str = ", ".join(keywords) if keywords else title
+
+    # Open-response quota: at least 1/3 of questions must be open-response
+    open_quota = max(3, num_questions // 3)
+    mcq_quota  = num_questions - open_quota
+
+    # Resolve {num_questions} placeholder in template strings at runtime
+    q_types_resolved = _Q_TYPE_EXPLANATIONS.replace("{num_questions}", str(num_questions))
+    shared_resolved  = _SHARED_RULES.replace("{num_questions}", str(num_questions))
 
     # Random session tag → ensures Gemini generates a unique set every call
-    seed_words = ["alpha","beta","gamma","delta","epsilon","zeta","eta",
-                  "theta","iota","kappa","lambda","sigma","omega","rho"]
+    seed_words = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta",
+                  "theta", "iota", "kappa", "lambda", "sigma", "omega", "rho"]
     session_tag = f"[Session-{random.choice(seed_words)}-{random.randint(1000,9999)}]"
 
-    return f"""You are an expert academic examiner {session_tag} creating HIGH-QUALITY assessment questions for the topic: "{title}".
-Domain: {domain.upper()}. Difficulty: {difficulty_desc}.
-IMPORTANT: Generate COMPLETELY DIFFERENT and UNIQUE questions — never repeat questions you may have generated before.
+    type_hint = ""
+    if topic_type == "coding":
+        type_hint = (
+            f"CRITICAL CODING INSTRUCTION:\n"
+            f"Because this is a CODING topic, at least HALF of the {open_quota} open-response questions MUST be 'code_question' types, "
+            f"where the student must write code. The 'question' field should explain the task, and the 'answer' field should contain the correct code solution.\n\n"
+        )
+    else:
+        type_hint = (
+            f"CRITICAL THEORY INSTRUCTION:\n"
+            f"Because this is a THEORY topic, you MUST include at least ONE 'diagram_question' or 'figure_explain' type question.\n"
+            f"For this question, you MUST provide a visual representation in the `figure_svg` field by writing a beautiful, valid SVG flowchart or diagram that illustrates a concept from the text. "
+            f"If an SVG is not suitable, you may instead provide a highly relevant, publicly accessible internet image URL in the `figure_svg` field (e.g., from Wikimedia Commons). "
+            f"The student will be asked to interpret or explain this figure.\n\n"
+        )
 
-=== CONTENT ===
-{context}
-=== END CONTENT ===
+    return (
+        f'You are an expert academic examiner {session_tag} '
+        f'deeply familiar with the topic: "{title}".\n'
+        f'Domain: {domain.upper()}. Topic Type: {type_desc}.\n\n'
+        f'STEP 1 — COMPREHEND THE CONTENT:\n'
+        f'Read the content below carefully. Identify the core concepts, their definitions, '
+        f'mechanisms, causes, consequences, and relationships.\n\n'
+        f'KEY TOPIC TERMS TO PRIORITISE IN YOUR QUESTIONS '
+        f'(derived from the content — these are the most important ideas):\n'
+        f'{keyword_str}\n\n'
+        f'{type_hint}'
+        f'STEP 2 — GENERATE {num_questions} QUESTIONS WITH THIS MANDATORY DISTRIBUTION:\n'
+        f'  \u2022 {open_quota} open-response questions (short_answer or long_answer) '
+        f'— student types answer in own words — place these LAST in the array\n'
+        f'  \u2022 {mcq_quota} multiple-choice questions '
+        f'(mcq, true_false, cunning, application, code_question, diagram_question)\n\n'
+        f'=== CONTENT ===\n{context}\n=== END CONTENT ===\n\n'
+        f'{q_types_resolved}\n'
+        f'DOMAIN-SPECIFIC HINT:\n{domain_hint}\n\n'
+        f'{shared_resolved}\n'
+        f'Generate exactly {num_questions} questions now. '
+        f'Every question must feel like it was written by a human examiner '
+        f'who thoroughly read the content — not a generic template.\n'
+        f'{_OUTPUT_EXAMPLE}'
+    )
 
-{_Q_TYPE_EXPLANATIONS}
-
-DOMAIN-SPECIFIC HINT:
-{domain_hint}
-
-{_SHARED_RULES}
-
-Generate exactly {num_questions} questions now.
-{_OUTPUT_EXAMPLE}"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -334,13 +531,13 @@ Generate exactly {num_questions} questions now.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _generate_with_gemini(
-    text: str, domain: str, num_questions: int, difficulty: int, title: str
+    text: str, domain: str, num_questions: int, topic_type: str, title: str
 ) -> list[dict]:
     client = _get_gemini_client()
     if client is None:
         return []
 
-    prompt = _build_prompt(text, domain, num_questions, difficulty, title)
+    prompt = _build_prompt(text, domain, num_questions, topic_type, title)
 
     for model_name in _GEMINI_MODELS:
         raw = ""
@@ -351,7 +548,7 @@ def _generate_with_gemini(
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
                     temperature=0.82,
-                    max_output_tokens=6000,
+                    max_output_tokens=8000,
                 ),
             )
             raw = response.text.strip()
@@ -475,24 +672,36 @@ def _rule_based_mcq_fallback(text: str, num_questions: int, domain: str) -> list
 
         random.shuffle(good_sents)
 
-        # Collect all capitalised terms from the FULL text as distractor pool
-        all_terms = list(set(
-            re.findall(r"\b([A-Z][a-zA-Z]{3,})\b", text)
-        ))
+        # — Context-aware distractor pool —
+        # Build a sentence index so we can pick terms from nearby sentences
+        # (semantically much more relevant than random full-document caps words).
         domain_dists = _DOMAIN_DISTRACTORS.get(domain, _DOMAIN_DISTRACTORS["general"])
 
-        def _get_distractors(exclude: str, n: int = 3) -> list[str]:
-            pool = [t for t in all_terms if t.lower() != exclude.lower()]
-            random.shuffle(pool)
-            chosen = pool[:n]
-            if len(chosen) < n:
-                chosen += [d for d in domain_dists if d.lower() != exclude.lower()]
-            return chosen[:n]
+        def _get_contextual_distractors(exclude: str, sent_idx: int, n: int = 3) -> list[str]:
+            """
+            Preference order:
+              1. Capitalised noun-like terms from the same + ±3 adjacent sentences
+              2. Same + ±10 sentences (broader paragraph)
+              3. Domain-specific fallback distractors
+            Terms must be ≥4 chars and different from exclude.
+            """
+            for window in [3, 10, len(good_sents)]:
+                lo = max(0, sent_idx - window)
+                hi = min(len(good_sents), sent_idx + window + 1)
+                nearby_text = " ".join(good_sents[lo:hi])
+                candidates = list(set(re.findall(r"\b([A-Z][a-zA-Z]{3,})\b", nearby_text)))
+                candidates = [c for c in candidates if c.lower() != exclude.lower() and len(c) >= 4]
+                if len(candidates) >= n:
+                    random.shuffle(candidates)
+                    return candidates[:n]
+            # Last resort: domain distractors
+            return [d for d in domain_dists if d.lower() != exclude.lower()][:n]
+
 
         questions = []
 
         # ── Tier 1: "What is X?" MCQs ─────────────────────────────────────
-        for sent in good_sents:
+        for sent_idx, sent in enumerate(good_sents):
             if len(questions) >= num_questions:
                 break
             for pat in (_IS_PATTERN, _DEF_PATTERN):
@@ -502,7 +711,7 @@ def _rule_based_mcq_fallback(text: str, num_questions: int, domain: str) -> list
                     predicate = m.group("predicate").strip().rstrip(".,;").capitalize()
                     if len(subject) < 3 or len(predicate) < 4:
                         continue
-                    distractors = _get_distractors(predicate)
+                    distractors = _get_contextual_distractors(predicate, sent_idx)
                     if len(distractors) < 3:
                         continue
                     opts = [predicate] + distractors[:3]
@@ -516,7 +725,7 @@ def _rule_based_mcq_fallback(text: str, num_questions: int, domain: str) -> list
                     break
 
         # ── Tier 2: Fill-in-the-blank ─────────────────────────────────────
-        for sent in good_sents:
+        for sent_idx, sent in enumerate(good_sents):
             if len(questions) >= num_questions:
                 break
             # Find meaningful capitalised inner words (not first word)
@@ -524,7 +733,7 @@ def _rule_based_mcq_fallback(text: str, num_questions: int, domain: str) -> list
             if inner:
                 target = random.choice(inner)
                 blanked = sent.replace(target, "_____", 1)
-                distractors = _get_distractors(target)
+                distractors = _get_contextual_distractors(target, sent_idx)
                 opts = [target] + distractors[:3]
                 random.shuffle(opts)
                 questions.append({
@@ -563,8 +772,8 @@ def _rule_based_mcq_fallback(text: str, num_questions: int, domain: str) -> list
 def generate_questions_from_text(
     text: str,
     num_questions: int = 12,
-    difficulty: int = 1,
-    title: str = "",
+    topic_type: str = "theory",
+    title: str = "General Topic"
 ) -> list[dict]:
     """
     Generate assessment questions from extracted PDF text.
@@ -598,8 +807,18 @@ def generate_questions_from_text(
     domain = _detect_domain(text, title=title)
     logger.info(f"Domain detected: {domain} (title='{title}')")
 
-    # Try Gemini (lazy-init — always attempts even if module-level init was skipped)
-    questions = _generate_with_gemini(text, domain, num_questions, difficulty, title)
+    # ── RAG: build semantically-rich context from the best PDF chunks ─────────
+    rag_context = _build_rag_context(text, title=title, k=5)
+    logger.info(f"RAG context ready ({len(rag_context)} chars) for Gemini")
+
+    # Try Gemini with the RAG-enhanced context
+    questions = _generate_with_gemini(
+        text=rag_context,
+        domain=domain,
+        num_questions=num_questions,
+        topic_type=topic_type,
+        title=title
+    )
     if questions:
         logger.info(f"Generated {len(questions)} questions via Gemini (domain={domain})")
         return questions[:num_questions]

@@ -30,7 +30,7 @@ def generate_questions(
     questions = generate_questions_from_text(
         text=topic.extracted_text,
         num_questions=12,
-        difficulty=topic.difficulty_level or 1,
+        topic_type=topic.topic_type or "theory",
         title=topic.title or "",        # ← pass topic title for smarter domain detection
     )
 

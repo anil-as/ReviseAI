@@ -15,6 +15,7 @@ import SubjectsPage from "./pages/student/SubjectsPage";
 import TopicListPage from "./pages/student/TopicListPage";
 import AssessmentPage from "./pages/student/AssessmentPage";
 import EnrollPage from "./pages/student/EnrollPage";
+import ManageRevisionsPage from "./pages/student/ManageRevisionsPage";
 
 // Instructor pages
 import InstructorDashboard from "./pages/instructor/InstructorDashboard";
@@ -41,6 +42,7 @@ function App() {
           {/* Student */}
           <Route path="/student" element={<ProtectedRoute role="student"><StudentDashboard /></ProtectedRoute>} />
           <Route path="/student/subjects" element={<ProtectedRoute role="student"><SubjectsPage /></ProtectedRoute>} />
+          <Route path="/student/manage-revisions" element={<ProtectedRoute role="student"><ManageRevisionsPage /></ProtectedRoute>} />
           <Route path="/student/subjects/:subjectId/topics" element={<ProtectedRoute role="student"><TopicListPage /></ProtectedRoute>} />
           <Route path="/student/assessment/:topicId" element={<ProtectedRoute role="student"><AssessmentPage /></ProtectedRoute>} />
           <Route path="/student/enroll" element={<ProtectedRoute role="student"><EnrollPage /></ProtectedRoute>} />

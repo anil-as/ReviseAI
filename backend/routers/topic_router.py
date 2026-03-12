@@ -21,8 +21,8 @@ router = APIRouter(
 @router.post("/{subject_id}", response_model=TopicResponse)
 def create_topic(
     subject_id: int,
-    title: str,
-    difficulty_level: int = 1,
+    title: str = Form(...),
+    topic_type: str = Form("theory"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -59,7 +59,7 @@ def create_topic(
 
     new_topic = models.Topic(
         title=title,
-        difficulty_level=difficulty_level,
+        topic_type=topic_type,
         subject_id=subject_id,
         file_path=file_location,
         extracted_text=extracted_text

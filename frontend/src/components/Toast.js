@@ -86,6 +86,11 @@ function Toast({ toast, onRemove }) {
         return () => clearTimeout(t);
     }, []);
 
+    const handleDismiss = useCallback(() => {
+        setVisible(false);
+        setTimeout(() => onRemove(toast.id), 320);
+    }, [onRemove, toast.id]);
+
     // Progress bar countdown
     useEffect(() => {
         startRef.current = performance.now();
@@ -101,12 +106,7 @@ function Toast({ toast, onRemove }) {
         };
         rafRef.current = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(rafRef.current);
-    }, []);
-
-    const handleDismiss = () => {
-        setVisible(false);
-        setTimeout(() => onRemove(toast.id), 320);
-    };
+    }, [duration, handleDismiss]);
 
     return (
         <div

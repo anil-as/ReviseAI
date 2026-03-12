@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import Modal from './Modal';
 
 function PdfViewerModal({ isOpen, onClose, fileUrl, title }) {
 
@@ -38,7 +37,7 @@ function PdfViewerModal({ isOpen, onClose, fileUrl, title }) {
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.4)"
             }}>
-                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600, letterSpacing: "0.02em" }}>
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600, letterSpacing: "0.02em", color: "white" }}>
                     📄 {title}
                 </h3>
                 <button

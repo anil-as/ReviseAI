@@ -32,6 +32,7 @@ function EnrollmentRequestsPage() {
         } finally { setLoading(false); }
     };
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { document.title = "Enrollments — ReviseAI"; load(); }, []);
 
     const handleApprove = async (id) => {
