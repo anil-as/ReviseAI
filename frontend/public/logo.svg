@@ -1,20 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
   <defs>
+    <!-- Base App Gradient -->
     <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#2961FF"/>
       <stop offset="100%" stop-color="#6366f1"/>
     </linearGradient>
-    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    
+    <!-- Time Gradient -->
+    <linearGradient id="timeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#f59e0b"/>
       <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    
+    <!-- Memory Nodes Gradient -->
+    <linearGradient id="nodeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#34d399"/>
     </linearGradient>
   </defs>
   
   <rect width="120" height="120" rx="28" fill="url(#aiGradient)"/>
   
-  <!-- Infinity / Open Book -->
-  <path d="M25 60 C 25 35, 55 45, 60 60 C 65 45, 95 35, 95 60 C 95 85, 65 75, 60 60 C 55 75, 25 85, 25 60 Z" fill="none" stroke="#ffffff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- Repeat Symbol (Orbital Circular Arrows) -->
+  <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Right arrow arc -->
+    <path d="M 40 33 A 33 33 0 0 1 93 60 A 33 33 0 0 1 40 87" />
+    <path d="M 40 87 L 48 95 M 40 87 L 48 79" />
+    
+    <!-- Left arrow arc -->
+    <path d="M 80 87 A 33 33 0 0 1 27 60 A 33 33 0 0 1 80 33" />
+    <path d="M 80 33 L 72 25 M 80 33 L 72 41" />
+  </g>
+
+
+
+  <!-- Time / Effective Usage (Central Stopwatch/Clock) -->
+  <circle cx="60" cy="60" r="14" fill="rgba(0,0,0,0.25)" stroke="url(#timeGrad)" stroke-width="4.5" />
+  <!-- Center dot to ensure clock hands connect nicely -->
+  <circle cx="60" cy="60" r="2.5" fill="url(#timeGrad)" />
+  <!-- Clock hands -->
+  <path d="M 60 50 L 60 60 L 66 66" fill="none" stroke="url(#timeGrad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Stopwatch Top Switch -->
+  <line x1="60" y1="40" x2="60" y2="46" stroke="url(#timeGrad)" stroke-width="4.5" stroke-linecap="round"/>
   
-  <!-- AI Spark -->
-  <path d="M 60 30 Q 60 42 72 42 Q 60 42 60 54 Q 60 42 48 42 Q 60 42 60 30 Z" fill="url(#sparkGrad)"/>
 </svg>
