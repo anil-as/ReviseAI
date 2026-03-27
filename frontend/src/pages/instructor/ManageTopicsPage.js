@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import DashboardLayout from "../../components/DashboardLayout";
 import Modal from "../../components/Modal";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 import LoadingSpinner from "../../components/LoadingSpinner";
-import { getTopics, createTopic, updateTopic, deleteTopic } from "../../services/topicService";
+import { getTopics, updateTopic, deleteTopic } from "../../services/topicService";
 import { useToast } from "../../components/Toast";
 import { getErrorMessage } from "../../services/errorUtils";
+import { useUploads } from "../../contexts/UploadContext";
 
 const TYPE_MAP = {
     theory: { label: "Theory / General", cls: "badge badge-easy" },
@@ -20,9 +22,9 @@ function ManageTopicsPage() {
     const [loading, setLoading] = useState(true);
 
     // Create modal
+    const { activeUploads, startUpload } = useUploads();
     const [createModal, setCreateModal] = useState(false);
     const [createForm, setCreateForm] = useState({ title: "", topic_type: "theory", file: null });
-    const [saving, setSaving] = useState(false);
 
     // Edit modal
     const [editModal, setEditModal] = useState(false);
@@ -48,19 +50,19 @@ function ManageTopicsPage() {
     const handleCreate = async (e) => {
         e.preventDefault();
         if (!createForm.file) { toast("Please select a PDF file", "warning"); return; }
-        setSaving(true);
+        
         const fd = new FormData();
         fd.append("title", createForm.title);
         fd.append("topic_type", createForm.topic_type);
         fd.append("file", createForm.file);
-        try {
-            await createTopic(subjectId, fd);
-            toast("Topic uploaded!", "success");
-            setCreateModal(false);
-            setCreateForm({ title: "", topic_type: "theory", file: null });
+
+        startUpload(subjectId, fd, () => {
             load();
-        } catch (err) { toast(getErrorMessage(err, "Upload failed"), "error"); }
-        finally { setSaving(false); }
+        });
+        
+        toast("Upload started in background", "success");
+        setCreateModal(false);
+        setCreateForm({ title: "", topic_type: "theory", file: null });
     };
 
     // ── Edit ────────────────────────────────────────
@@ -125,7 +127,7 @@ function ManageTopicsPage() {
                 </button>
             </div>
 
-            {topics.length === 0 && !loading ? (
+            {topics.length === 0 && Object.values(activeUploads).length === 0 && !loading ? (
                 <div className="empty-state">
                     <div className="empty-icon">📄</div>
                     <h3>No topics yet</h3>
@@ -133,6 +135,31 @@ function ManageTopicsPage() {
                 </div>
             ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {/* Active Uploads */}
+                    {Object.values(activeUploads).map(u => (
+                        <article key={u.id} className="card" style={{ padding: "18px 22px", border: "1px dashed var(--color-primary)", opacity: 0.8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                                <div style={{ width: 42, height: 42, borderRadius: 12, background: "var(--bg-surface-3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    {u.status === 'completed' ? '✅' : <div className="spinner" style={{ width: 18, height: 18 }} />}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.95rem" }}>{u.title}</div>
+                                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>
+                                        {u.status === 'completed' ? 'Processing complete!' : `Uploading topic... ${u.progress}%`}
+                                    </div>
+                                    <div style={{ width: "100%", height: 6, background: "var(--bg-surface-3)", borderRadius: 10, marginTop: 8, overflow: "hidden" }}>
+                                        <motion.div 
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${u.progress}%` }}
+                                            style={{ height: "100%", background: "var(--color-primary)", borderRadius: 10 }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+                    ))}
+
+                    {/* Existing Topics */}
                     {topics.map(t => {
                         const tType = TYPE_MAP[t.topic_type] || TYPE_MAP.theory;
                         return (
@@ -202,19 +229,22 @@ function ManageTopicsPage() {
                         <input id="topic-title" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} placeholder="e.g. Process Scheduling" required />
                     </div>
                     <div className="form-group">
-                        <label className="form-label" htmlFor="topic-diff">Difficulty</label>
-                        <select id="topic-diff" value={createForm.difficulty_level} onChange={e => setCreateForm({ ...createForm, difficulty_level: parseInt(e.target.value) })}>
-                            <option value={1}>Easy</option>
-                            <option value={2}>Medium</option>
-                            <option value={3}>Hard</option>
+                        <label className="form-label" htmlFor="topic-type">Topic Type</label>
+                        <select
+                            id="topic-type"
+                            value={createForm.topic_type}
+                            onChange={e => setCreateForm({ ...createForm, topic_type: e.target.value })}
+                        >
+                            <option value="theory">📖 Theory / General</option>
+                            <option value="coding">🖥️ Programming / Coding</option>
                         </select>
                     </div>
                     <div className="form-group">
                         <label className="form-label" htmlFor="topic-file">PDF file</label>
                         <input id="topic-file" type="file" accept=".pdf" onChange={e => setCreateForm({ ...createForm, file: e.target.files[0] })} required />
                     </div>
-                    <button type="submit" disabled={saving} className="btn-primary" style={{ padding: "12px" }}>
-                        {saving ? <><span className="spinner" /> Uploading…</> : "Upload Topic"}
+                    <button type="submit" className="btn-primary" style={{ padding: "12px" }}>
+                        Upload Topic
                     </button>
                 </form>
             </Modal>
@@ -242,18 +272,6 @@ function ManageTopicsPage() {
                         >
                             <option value="theory">📖 Theory / General</option>
                             <option value="coding">🖥️ Programming / Coding</option>
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="edit-topic-diff">Difficulty</label>
-                        <select
-                            id="edit-topic-diff"
-                            value={editForm.difficulty_level}
-                            onChange={e => setEditForm({ ...editForm, difficulty_level: parseInt(e.target.value) })}
-                        >
-                            <option value={1}>Easy</option>
-                            <option value={2}>Medium</option>
-                            <option value={3}>Hard</option>
                         </select>
                     </div>
                     <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: -8 }}>

@@ -1,4 +1,4 @@
-import React from 'react';
+import { motion } from 'framer-motion';
 
 function MemoryBar({ value = 0, showLabel = true, isNew = false }) {
     const pct = isNew ? 0 : Math.round((value || 0) * 100);
@@ -21,6 +21,8 @@ function MemoryBar({ value = 0, showLabel = true, isNew = false }) {
         return 'Critical';
     };
 
+    const color = getColor(value);
+
     return (
         <div>
             {showLabel && (
@@ -28,7 +30,7 @@ function MemoryBar({ value = 0, showLabel = true, isNew = false }) {
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                         Memory: {getLabel(value)}
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: getColor(value), fontWeight: 700 }}>
+                    <span style={{ fontSize: '0.75rem', color, fontWeight: 700 }}>
                         {isNew ? '—' : `${pct}%`}
                     </span>
                 </div>
@@ -37,13 +39,16 @@ function MemoryBar({ value = 0, showLabel = true, isNew = false }) {
                 height: 6, background: 'var(--bg-surface-2)',
                 borderRadius: 99, overflow: 'hidden',
             }}>
-                <div style={{
-                    height: '100%',
-                    width: isNew ? '100%' : `${pct}%`,
-                    background: isNew ? 'var(--bg-surface-2)' : getColor(value),
-                    borderRadius: 99,
-                    transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
-                }} />
+                <motion.div
+                    style={{
+                        height: '100%',
+                        background: isNew ? 'var(--bg-surface-2)' : color,
+                        borderRadius: 99,
+                    }}
+                    initial={{ width: 0 }}
+                    animate={{ width: isNew ? '100%' : `${pct}%` }}
+                    transition={{ duration: 1.0, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
+                />
             </div>
         </div>
     );

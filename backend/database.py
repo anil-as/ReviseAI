@@ -32,3 +32,31 @@ SessionLocal = sessionmaker(
 
 # Base → parent class for all models
 Base = declarative_base()
+
+
+# -------------------------------------------------------------------
+# SQLite auto-migration: add any missing columns to existing tables.
+# This runs once at import time so existing databases stay compatible.
+# -------------------------------------------------------------------
+def _run_migrations():
+    """Add new columns to existing SQLite tables if they are not present."""
+    with engine.connect() as conn:
+        existing = [
+            row[1]
+            for row in conn.execute(
+                __import__("sqlalchemy").text(
+                    "PRAGMA table_info(student_topic_progress)"
+                )
+            )
+        ]
+        if "next_assessment_date" not in existing:
+            conn.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE student_topic_progress "
+                    "ADD COLUMN next_assessment_date DATETIME"
+                )
+            )
+            conn.commit()
+
+
+_run_migrations()

@@ -165,7 +165,18 @@ def delete_subject(
     if subject.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
+    # 1. Soft-delete the subject
     subject.is_deleted = True
+
+    # 2. Soft-delete all topics under this subject
+    db.query(models.Topic).filter(
+        models.Topic.subject_id == subject.id
+    ).update({"is_deleted": True})
+
+    # 3. Delete all enrollments for this subject
+    db.query(models.Enrollment).filter(
+        models.Enrollment.subject_id == subject.id
+    ).delete()
 
     db.commit()
 

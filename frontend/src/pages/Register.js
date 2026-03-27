@@ -2,18 +2,17 @@ import { useState, useEffect } from "react";
 import API from "../services/api";
 import { useNavigate, Link } from "react-router-dom";
 import { getErrorMessage } from "../services/errorUtils";
+import ThemeToggle from "../components/bits/ThemeToggle";
 
 function Register() {
   const navigate = useNavigate();
   const [user, setUser] = useState({ name: "", email: "", password: "", role: "student" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
 
   useEffect(() => {
     document.title = "Create Account — ReviseAI";
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+  }, []);
 
   const handleChange = (e) => {
     setUser({ ...user, [e.target.name]: e.target.value });
@@ -34,19 +33,13 @@ function Register() {
     }
   };
 
-  const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
-    setTheme(next);
-    localStorage.setItem("theme", next);
-  };
-
   return (
     <div style={{ minHeight: "100vh", display: "flex", background: "var(--bg-base)" }}>
 
       {/* ── Left brand panel ── */}
       <div style={{
         flex: "0 0 42%",
-        background: "linear-gradient(145deg, #3c315b 0%, #2961FF 100%)",
+        background: "linear-gradient(145deg, var(--color-brand) 0%, var(--color-primary) 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -97,18 +90,10 @@ function Register() {
 
       {/* ── Right form panel ── */}
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 32px", position: "relative" }}>
-        <button
-          onClick={toggleTheme}
-          aria-label="Toggle theme"
-          style={{
-            position: "absolute", top: 20, right: 20,
-            background: "var(--bg-surface)", color: "var(--text-secondary)",
-            border: "1.5px solid var(--border-color)",
-            width: 38, height: 38, borderRadius: "50%",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "1rem",
-          }}
-        >{theme === "dark" ? "☀️" : "🌙"}</button>
+        {/* Theme toggle */}
+        <div style={{ position: "absolute", top: 20, right: 20 }}>
+          <ThemeToggle />
+        </div>
 
         <main style={{ width: "100%", maxWidth: 420 }} className="animate-scaleIn">
           <div style={{ marginBottom: 32 }}>
@@ -165,17 +150,11 @@ function Register() {
 
             {error && <div className="alert-error animate-fadeIn" role="alert">{error}</div>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary"
-              style={{
-                width: "100%", padding: "14px",
-                fontSize: "1rem", fontWeight: 700, marginTop: 6,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}
-            >
-              {loading ? <><span className="spinner" />Creating account…</> : "Create account →"}
+            <button type="submit" disabled={loading} className="btn-primary" style={{
+              width: "100%", padding: "14px", fontSize: "1rem", marginTop: 10,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 10
+            }}>
+              {loading ? "Creating Account..." : "Join ReviseAI"}
             </button>
           </form>
         </main>

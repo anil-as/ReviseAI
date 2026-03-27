@@ -162,6 +162,7 @@ class StudentTopicProgress(Base):
 
     last_revision_date = Column(DateTime, nullable=True)
     next_revision_date = Column(DateTime, nullable=True)
+    next_assessment_date = Column(DateTime, nullable=True)  # revision first, then assess
 
     postpone_count = Column(Integer, default=0)
 

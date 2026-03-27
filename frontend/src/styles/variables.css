@@ -1,148 +1,73 @@
 /* ============================================
    ReviseAI — CSS Design Tokens
-   Light / Dark / Black themes via data-theme
+   Aceternity UI Inspired — Deep Dark Theme
    ============================================ */
 
 :root {
-  /* ── Brand ── */
-  --color-primary: #2961FF;
-  --color-primary-hover: #1a4fd6;
-  --color-primary-light: #EBE9FE;
-  --color-brand: #3c315b;
-  --color-brand-light: #f3f0ff;
-  --color-accent: #818cf8;
+  /* ── Brand / Accent ── */
+  --color-primary: #6366f1;        /* Indigo */
+  --color-primary-hover: #4f46e5;
+  --color-primary-light: rgba(99, 102, 241, 0.12);
+  --color-accent: #8b5cf6;         /* Violet */
+  --color-amber: #f59e0b;
+  --color-brand: #ffffff;
 
   /* ── Status ── */
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
-  --color-info: #38bdf8;
+  --color-info: #0ea5e9;
 
-  /* ── Backgrounds ── */
-  --bg-base: #F8FAFC;
-  --bg-surface: #ffffff;
-  --bg-surface-2: #f1f5f9;
-  --bg-overlay: rgba(0, 0, 0, 0.45);
-  --bg-gradient: linear-gradient(135deg, #EBE9FE 0%, #F8FAFC 60%, #ffffff 100%);
-  --bg-navbar: rgba(255, 255, 255, 0.95);
-  /* theme-specific navbar bg */
+  /* ── Backgrounds (Minimal White Palette) ── */
+  --bg-base: #f9fafb;              /* gray-50 — very light background */
+  --bg-surface: #ffffff;           /* pure white */
+  --bg-surface-2: #ffffff;         /* pure white for cards */
+  --bg-surface-3: #f3f4f6;         /* slightly darker for hover/elevated */
+  --bg-overlay: rgba(0, 0, 0, 0.4);
+  --bg-navbar: rgba(255, 255, 255, 0.85);
 
   /* ── Borders ── */
-  --border-color: #e2e8f0;
-  --border-radius: 20px;
+  --border-color: #e5e7eb;         /* gray-200 */
+  --border-bright: #d1d5db;        /* gray-300 */
+  --border-radius: 14px;
   --border-radius-sm: 10px;
-  --border-radius-lg: 28px;
+  --border-radius-lg: 20px;
   --radius-pill: 9999px;
 
-  /* ── Text ── */
-  --text-primary: #1e293b;
-  --text-body: #334155;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+  /* ── Text (Minimal White Palette) ── */
+  --text-primary: #111827;         /* gray-900 */
+  --text-body: #374151;            /* gray-700 */
+  --text-secondary: #4b5563;       /* gray-600 */
+  --text-muted: #6b7280;           /* gray-500 */
   --text-on-primary: #ffffff;
-  --text-navbar: #1e293b;
-  /* For navbar logo + username — always readable */
+  --text-navbar: #111827;
 
-  /* ── Avatar / chip border ── */
-  --avatar-border: rgba(41, 97, 255, 0.18);
-
-  /* ── Shadows ── */
-  --shadow-sm: 0 1px 3px rgba(41, 97, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 16px rgba(41, 97, 255, 0.10), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 12px 40px rgba(41, 97, 255, 0.14);
-  --shadow-card: 0 2px 12px rgba(60, 49, 91, 0.08);
-
-  /* ── Spacing ── */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-16: 64px;
+  /* ── Glow / Shadow ── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0,0,0,0.02);
+  --glow-primary: 0 0 15px rgba(99, 102, 241, 0.2);
+  --glow-purple: 0 0 15px rgba(139, 92, 246, 0.2);
 
   /* ── Layout ── */
   --sidebar-width: 240px;
-  --navbar-height: 64px;
+  --navbar-height: 60px;
+
+  /* ── Sidebar (Minimal Light Panel) ── */
+  --sidebar-bg: #ffffff;
+  --sidebar-bg-hover: #f3f4f6;
+  --sidebar-active-bg: rgba(99, 102, 241, 0.1);
+  --sidebar-active-glow: transparent;
+  --sidebar-text: #4b5563;
+  --sidebar-text-hover: #111827;
+  --sidebar-text-active: #6366f1;
+  --sidebar-border: #e5e7eb;
+  --sidebar-section-label: #6b7280;
+  --sidebar-icon-active: #6366f1;
 
   /* ── Transitions ── */
-  --transition-fast: 150ms ease;
-  --transition-normal: 250ms ease;
-  --transition-slow: 400ms ease;
-}
-
-/* ── Dark mode ── */
-[data-theme="dark"] {
-  --color-primary: #6ea0ff;
-  --color-primary-hover: #4d84ff;
-  --color-primary-light: rgba(110, 160, 255, 0.12);
-  --color-brand: #c4b5fd;
-  --color-brand-light: #1e1b4b;
-
-  --bg-base: #0f0e1a;
-  --bg-surface: #1a1830;
-  --bg-surface-2: #231f3a;
-  --bg-overlay: rgba(0, 0, 0, 0.65);
-  --bg-gradient: linear-gradient(135deg, #1e1b4b 0%, #0f0e1a 100%);
-  --bg-navbar: rgba(26, 24, 48, 0.95);
-
-  --border-color: #2d2a4a;
-
-  --text-primary: #f1f5f9;
-  --text-body: #cbd5e1;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-navbar: #f1f5f9;
-
-  --avatar-border: rgba(110, 160, 255, 0.25);
-
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.55);
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.3);
-}
-
-/* ── Black (monochrome) theme ── */
-[data-theme="black"] {
-  --color-primary: #a3e635;
-  /* lime green accent */
-  --color-primary-hover: #bef264;
-  --color-primary-light: rgba(163, 230, 53, 0.10);
-  --color-brand: #ffffff;
-  --color-brand-light: rgba(255, 255, 255, 0.05);
-  --color-accent: #a3e635;
-
-  --color-success: #a3e635;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-  --color-info: #67e8f9;
-
-  --bg-base: #0a0a0a;
-  --bg-surface: #111111;
-  --bg-surface-2: #1a1a1a;
-  --bg-overlay: rgba(0, 0, 0, 0.8);
-  --bg-gradient: linear-gradient(135deg, #111111 0%, #0a0a0a 100%);
-  --bg-navbar: rgba(17, 17, 17, 0.97);
-
-  --border-color: #2a2a2a;
-  --border-radius: 16px;
-  --border-radius-sm: 8px;
-
-  --text-primary: #f5f5f5;
-  --text-body: #d4d4d4;
-  --text-secondary: #a3a3a3;
-  --text-muted: #525252;
-  --text-navbar: #f5f5f5;
-  --text-on-primary: #0a0a0a;
-  /* black text on lime button */
-
-  --avatar-border: rgba(163, 230, 53, 0.3);
-
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.6);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.7);
-  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.8);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
