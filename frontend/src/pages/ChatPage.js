@@ -229,49 +229,66 @@ function ChatPage() {
                                 return (
                                     <div key={m.id} style={{
                                         display: "flex",
-                                        justifyContent: isOwn ? "flex-end" : "flex-start",
-                                        marginBottom: 2,
+                                        flexDirection: "column",
+                                        alignItems: isOwn ? "flex-end" : "flex-start",
+                                        marginBottom: 8,
                                     }}>
-                                        <div style={{ maxWidth: "70%", display: "flex", flexDirection: "column", gap: 2, alignItems: isOwn ? "flex-end" : "flex-start" }}>
+                                        {/* Sender name — always ABOVE the bubble */}
+                                        {!isOwn && (
+                                            <div style={{
+                                                fontSize: "0.7rem", fontWeight: 700,
+                                                color: isInstructor ? "var(--color-primary)" : "var(--text-muted)",
+                                                paddingLeft: 36, marginBottom: 3,
+                                            }}>
+                                                {isInstructor ? "👨‍🏫 " : ""}{m.sender_name}
+                                            </div>
+                                        )}
+
+                                        {/* Avatar + Bubble row */}
+                                        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, maxWidth: "70%" }}>
                                             {!isOwn && (
-                                                <div style={{ fontSize: "0.67rem", fontWeight: 700, color: isInstructor ? "var(--color-primary)" : "var(--text-muted)", paddingLeft: 4 }}>
-                                                    {isInstructor ? "👨‍🏫 " : ""}{m.sender_name}
+                                                <div style={{
+                                                    width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                                                    background: isInstructor ? "var(--color-primary)" : "var(--bg-surface-2)",
+                                                    border: "1px solid var(--border-color)",
+                                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                                    fontSize: "0.75rem", fontWeight: 700,
+                                                    color: isInstructor ? "#fff" : "var(--text-secondary)",
+                                                }}>
+                                                    {m.sender_name.charAt(0).toUpperCase()}
                                                 </div>
                                             )}
-                                            <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-                                                {!isOwn && (
-                                                    <div style={{
-                                                        width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                                                        background: isInstructor ? "var(--color-primary)" : "var(--bg-surface-2)",
-                                                        border: "1px solid var(--border-color)",
-                                                        display: "flex", alignItems: "center", justifyContent: "center",
-                                                        fontSize: "0.75rem", fontWeight: 700,
-                                                        color: isInstructor ? "#fff" : "var(--text-secondary)",
-                                                    }}>{m.sender_name.charAt(0).toUpperCase()}</div>
-                                                )}
-                                                <div style={{
-                                                    padding: "10px 14px",
-                                                    borderRadius: isOwn ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                                                    background: isOwn ? "var(--color-primary)"
-                                                        : isInstructor ? "var(--bg-surface-2)"
-                                                            : "var(--bg-surface-2)",
-                                                    border: `1px solid ${isOwn ? "transparent" : "var(--border-color)"}`,
-                                                    color: isOwn ? "#fff" : "var(--text-primary)",
-                                                    fontSize: "0.87rem", lineHeight: 1.5,
-                                                    boxShadow: "var(--shadow-sm)",
-                                                    wordBreak: "break-word",
-                                                }}>
-                                                    {m.content}
-                                                </div>
+                                            <div style={{
+                                                padding: "10px 14px",
+                                                borderRadius: isOwn ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                                                background: isOwn ? "var(--color-primary)" : "var(--bg-surface-2)",
+                                                border: `1px solid ${isOwn ? "transparent" : "var(--border-color)"}`,
+                                                color: isOwn ? "#fff" : "var(--text-primary)",
+                                                fontSize: "0.87rem", lineHeight: 1.5,
+                                                boxShadow: "var(--shadow-sm)",
+                                                wordBreak: "break-word",
+                                            }}>
+                                                {m.content}
                                             </div>
-                                            <div style={{ display: "flex", gap: 8, alignItems: "center", paddingLeft: isOwn ? 0 : 34, paddingRight: isOwn ? 4 : 0 }}>
-                                                <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{formatTime(m.created_at)}</span>
-                                                {isOwn && (
-                                                    <button onClick={() => handleDelete(m.id)}
-                                                        style={{ fontSize: "0.65rem", color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                                                    >Delete</button>
-                                                )}
-                                            </div>
+                                        </div>
+
+                                        {/* Timestamp — always BELOW the bubble */}
+                                        <div style={{
+                                            display: "flex", gap: 8, alignItems: "center",
+                                            marginTop: 3,
+                                            paddingLeft: isOwn ? 0 : 36,
+                                        }}>
+                                            <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+                                                {formatTime(m.created_at)}
+                                            </span>
+                                            {isOwn && (
+                                                <button
+                                                    onClick={() => handleDelete(m.id)}
+                                                    style={{ fontSize: "0.65rem", color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                                                >
+                                                    Delete
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 );

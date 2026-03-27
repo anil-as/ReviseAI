@@ -193,54 +193,7 @@ function Sidebar({ role, isOpen, onClose }) {
                 })}
             </div>
 
-            {/* Divider */}
-            <div style={{ height: 1, background: 'var(--sidebar-border)', margin: '8px 0' }} />
 
-            {/* User identity card at bottom */}
-            <motion.div
-                variants={itemVariants}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    background: 'var(--bg-surface-2)',
-                    border: '1px solid var(--sidebar-border)',
-                    marginBottom: 4,
-                }}
-            >
-                {/* Avatar */}
-                <div style={{
-                    width: 34, height: 34, borderRadius: 10,
-                    background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-                    color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 800, fontSize: '0.78rem', flexShrink: 0,
-                    boxShadow: '0 0 0 2px rgba(99,102,241,0.4)',
-                }}>
-                    {initials}
-                </div>
-                <div style={{ overflow: 'hidden', flex: 1 }}>
-                    <div style={{
-                        fontSize: '0.82rem', fontWeight: 700,
-                        color: 'var(--sidebar-text-hover)',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                        {userName || 'User'}
-                    </div>
-                    <div style={{
-                        fontSize: '0.65rem', fontWeight: 600,
-                        color: 'var(--sidebar-section-label)',
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        textTransform: 'uppercase', letterSpacing: '0.07em',
-                        marginTop: 2,
-                    }}>
-                        <i className={roleIcon} style={{ fontSize: '0.7rem' }} />
-                        {roleLabel}
-                    </div>
-                </div>
-            </motion.div>
         </motion.nav>
     );
 }

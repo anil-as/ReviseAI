@@ -79,7 +79,7 @@ function ManageRevisionsPage() {
 
     return (
         <DashboardLayout>
-            <div className="animate-fadeIn" style={{ maxWidth: 1000, margin: '0 auto' }}>
+            <div className="animate-fadeIn" style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 28 }}>
                     <div>
                         <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>

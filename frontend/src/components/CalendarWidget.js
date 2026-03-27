@@ -133,7 +133,7 @@ function CalendarWidget({ revisions = [], events = [], onDataChange, role = "stu
                             onClick={() => setSelected(dateStr)}
                             style={{
                                 position: "relative",
-                                aspectRatio: "1",
+                                height: 42,
                                 borderRadius: 8,
                                 background: isSelected ? "var(--color-primary)"
                                     : isToday ? "var(--bg-surface-2)"

@@ -50,10 +50,13 @@ def get_messages(
 ):
     _check_subject_access(subject_id, current_user, db)
 
-    messages = db.query(models.ChatMessage).filter(
+    messages_query = db.query(models.ChatMessage).filter(
         models.ChatMessage.subject_id == subject_id,
         models.ChatMessage.is_deleted == False
-    ).order_by(models.ChatMessage.created_at.asc()).limit(200).all()
+    ).order_by(models.ChatMessage.created_at.desc()).limit(200).all()
+
+    # Reverse to return oldest-first for the frontend UI chronologically
+    messages = list(reversed(messages_query))
 
     return [
         {

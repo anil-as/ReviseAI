@@ -70,7 +70,7 @@ function ProfilePage() {
 
     return (
         <DashboardLayout>
-            <div style={{ maxWidth: 580, margin: "0 auto" }}>
+            <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 24px" }}>
 
                 {/* Avatar card */}
                 <div className="card" style={{ padding: 0, marginBottom: 20, overflow: "hidden" }}>

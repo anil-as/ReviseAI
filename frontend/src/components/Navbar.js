@@ -39,27 +39,24 @@ function Navbar({ onMenuClick }) {
             transition={{ type: "spring", stiffness: 200, damping: 20 }}
             style={{
                 position: 'fixed',
-                top: 15,
-                left: '50%',
-                x: '-50%',
-                width: 'calc(100% - 32px)',
-                maxWidth: 1100,
+                top: 0,
+                left: 0,
+                width: '100%',
                 height: 60,
-                borderRadius: 99,
-                background: 'rgba(255, 255, 255, 0.8)',
-                border: '1px solid var(--border-color)',
+                background: 'rgba(255, 255, 255, 0.85)',
+                borderBottom: '1px solid var(--border-color)',
                 backdropFilter: 'blur(16px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(16px) saturate(180%)',
                 display: 'flex',
                 alignItems: 'center',
-                padding: '0 20px',
+                padding: '0 24px',
                 justifyContent: 'space-between',
                 zIndex: 1000,
                 boxShadow: 'var(--shadow-sm)',
             }}
         >
-            {/* ── Left side ── */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {/* ── Left side (Mobile Toggle + Logo) ── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
                 {/* Mobile hamburger */}
                 <motion.button
                     className="mobile-menu-btn"
@@ -75,27 +72,15 @@ function Navbar({ onMenuClick }) {
                 >
                     <i className="fi fi-rr-menu-burger" style={{ fontSize: '1rem', lineHeight: 1 }} />
                 </motion.button>
-            </div>
 
-            {/* ── Center (Logo) ── */}
-            <div style={{
-                position: 'absolute',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                display: 'flex',
-                alignItems: 'center'
-            }}>
+                {/* Logo */}
                 <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
                     <img 
                         src="/logo.svg" 
                         alt="ReviseAI" 
                         style={{ 
-                            width: 38, 
-                            height: 38, 
-                            borderRadius: '50%', 
-                            padding: 2,
-                            background: '#fff',
-                            border: '1.5px solid var(--color-primary)',
+                            width: 34, 
+                            height: 34, 
                             objectFit: 'contain'
                         }} 
                     />

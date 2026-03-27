@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import DashboardLayout from "../../components/DashboardLayout";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import CalendarWidget from "../../components/CalendarWidget";
@@ -9,6 +9,7 @@ import Spotlight from "../../components/bits/Spotlight";
 import GlowCard from "../../components/bits/GlowCard";
 
 function InstructorDashboard() {
+    const navigate = useNavigate();
     const [subjects, setSubjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [calData, setCalData] = useState({ revisions: [], events: [] });
@@ -110,7 +111,7 @@ function InstructorDashboard() {
                     ) : (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
                             {subjects.slice(0, 8).map(s => (
-                                <Link key={s.id} to={`/instructor/subjects/${s.id}/topics`} style={{ textDecoration: "none" }}>
+                                <div key={s.id} onClick={() => navigate(`/instructor/analytics?subject=${s.id}`)} style={{ cursor: "pointer", textDecoration: "none" }}>
                                     <GlowCard glowColor="99, 102, 241" glowOpacity={0.1} borderRadius={18}>
                                         <article className="card animate-fadeIn" style={{ padding: "20px", border: "none", height: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
                                             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -135,13 +136,17 @@ function InstructorDashboard() {
                                                 </div>
                                             </div>
                                             
-                                            <div style={{ 
+                                            <div 
+                                                onClick={(e) => { e.stopPropagation(); navigate(`/instructor/subjects/${s.id}/topics`); }}
+                                                className="hover-footer"
+                                                style={{ 
                                                 marginTop: "auto", 
                                                 paddingTop: 14, 
                                                 borderTop: "1px solid var(--border-color)",
                                                 display: "flex",
                                                 justifyContent: "space-between",
-                                                alignItems: "center"
+                                                alignItems: "center",
+                                                transition: "all 0.2s"
                                             }}>
                                                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>
                                                     Manage Materials →
@@ -157,7 +162,7 @@ function InstructorDashboard() {
                                             </div>
                                         </article>
                                     </GlowCard>
-                                </Link>
+                                </div>
                             ))}
                         </div>
                     )}
