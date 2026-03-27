@@ -141,7 +141,7 @@ function CalendarWidget({ revisions = [], events = [], onDataChange, role = "stu
                                 border: isToday && !isSelected
                                     ? "1.5px solid var(--color-primary)"
                                     : "1.5px solid transparent",
-                                color: isSelected ? (document.documentElement.getAttribute("data-theme") === "black" ? "#000" : "#fff")
+                                color: isSelected ? "var(--text-on-primary)"
                                     : "var(--text-primary)",
                                 fontWeight: isToday || isSelected ? 800 : 500,
                                 fontSize: "0.82rem",

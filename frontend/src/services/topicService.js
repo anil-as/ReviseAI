@@ -1,9 +1,10 @@
 import API from './api';
 
-export const createTopic = (subjectId, formData) => {
+export const createTopic = (subjectId, formData, onProgress) => {
     // Backend reads `title`, `topic_type`, and `file` as Form data
     return API.post(`/topics/${subjectId}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: onProgress
     });
 };
 

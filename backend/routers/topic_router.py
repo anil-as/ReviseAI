@@ -9,6 +9,7 @@ import re
 import models
 from schemas import TopicResponse
 from dependencies import get_db, get_current_user
+from routers.assessment_router import _smart_schedule, ASSESSMENT_GAP
 
 router = APIRouter(
     prefix="/topics",
@@ -69,7 +70,9 @@ def create_topic(
     db.commit()
     db.refresh(new_topic)
 
-    # Create progress
+    # Create progress — use smart scheduling for the first revision + assessment dates
+    first_revision_base = datetime.utcnow() + timedelta(days=1)
+
     if current_user.role == "student":
         progress = models.StudentTopicProgress(
             student_id=current_user.id,
@@ -77,10 +80,27 @@ def create_topic(
             memory_strength=0.5,
             current_interval=1,
             last_revision_date=datetime.utcnow(),
-            next_revision_date=datetime.utcnow() + timedelta(days=1),
+            next_revision_date=first_revision_base,
+            next_assessment_date=first_revision_base + timedelta(days=ASSESSMENT_GAP),
         )
         db.add(progress)
         db.commit()
+        # Place load-balanced calendar events for this student
+        try:
+            rev_dt, ass_dt = _smart_schedule(
+                db=db,
+                user_id=current_user.id,
+                base_date=first_revision_base.date(),
+                memory_strength=0.5,
+                topic_id=new_topic.id,
+                topic_title=new_topic.title,
+                base_datetime=first_revision_base,
+            )
+            progress.next_revision_date = rev_dt
+            progress.next_assessment_date = ass_dt
+            db.commit()
+        except Exception:
+            pass
 
     if current_user.role == "instructor":
         enrollments = db.query(models.Enrollment).filter(
@@ -95,10 +115,33 @@ def create_topic(
                 memory_strength=0.5,
                 current_interval=1,
                 last_revision_date=datetime.utcnow(),
-                next_revision_date=datetime.utcnow() + timedelta(days=1),
+                next_revision_date=first_revision_base,
+                next_assessment_date=first_revision_base + timedelta(days=ASSESSMENT_GAP),
             )
             db.add(progress)
+        db.commit()
 
+        # Place calendar events for each enrolled student
+        for enrollment in enrollments:
+            try:
+                rev_dt, ass_dt = _smart_schedule(
+                    db=db,
+                    user_id=enrollment.student_id,
+                    base_date=first_revision_base.date(),
+                    memory_strength=0.5,
+                    topic_id=new_topic.id,
+                    topic_title=new_topic.title,
+                    base_datetime=first_revision_base,
+                )
+                p = db.query(models.StudentTopicProgress).filter(
+                    models.StudentTopicProgress.student_id == enrollment.student_id,
+                    models.StudentTopicProgress.topic_id == new_topic.id,
+                ).first()
+                if p:
+                    p.next_revision_date = rev_dt
+                    p.next_assessment_date = ass_dt
+            except Exception:
+                pass
         db.commit()
 
     return new_topic

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import DashboardLayout from "../../components/DashboardLayout";
 import Modal from "../../components/Modal";
 import PdfViewerModal from "../../components/PdfViewerModal";
@@ -8,6 +9,7 @@ import LoadingSpinner from "../../components/LoadingSpinner";
 import { getTopics, createTopic, deleteTopic } from "../../services/topicService";
 import { useToast } from "../../components/Toast";
 import { getErrorMessage } from "../../services/errorUtils";
+import { useUploads } from "../../contexts/UploadContext";
 
 const TYPE_MAP = {
     theory: { label: "Theory / General", cls: "badge badge-easy" },
@@ -17,11 +19,11 @@ const TYPE_MAP = {
 function TopicListPage() {
     const { subjectId } = useParams();
     const toast = useToast();
+    const { activeUploads, startUpload } = useUploads();
     const [topics, setTopics] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modal, setModal] = useState(false);
     const [form, setForm] = useState({ title: "", topic_type: "theory", file: null });
-    const [saving, setSaving] = useState(false);
 
     // PDF Viewer State
     const [pdfModalOpen, setPdfModalOpen] = useState(false);
@@ -43,26 +45,25 @@ function TopicListPage() {
 
     useEffect(() => {
         document.title = "Topics — ReviseAI";
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         load();
-    }, [subjectId]);
+    }, [subjectId]); // eslint-disable-line
 
     const handleCreate = async (e) => {
         e.preventDefault();
         if (!form.file) { toast("Please select a PDF file", "warning"); return; }
-        setSaving(true);
+        
         const fd = new FormData();
         fd.append("title", form.title);
         fd.append("topic_type", form.topic_type);
         fd.append("file", form.file);
-        try {
-            await createTopic(subjectId, fd);
-            toast("Topic uploaded!", "success");
-            setModal(false);
-            setForm({ title: "", topic_type: "theory", file: null });
-            load();
-        } catch (err) { toast(getErrorMessage(err, "Upload failed"), "error"); }
-        finally { setSaving(false); }
+
+        setModal(false);
+        setForm({ title: "", topic_type: "theory", file: null });
+        
+        // Start background upload
+        startUpload(subjectId, fd, () => {
+            load(); // Reload once finished
+        });
     };
 
     // ── Delete ──────────────────────────────────────
@@ -79,6 +80,9 @@ function TopicListPage() {
             setDeleteModal({ isOpen: false, topicId: null, topicName: "" });
         }
     };
+
+    // Filter active uploads for this subject/context (simplified check)
+    const currentUploads = Object.values(activeUploads);
 
     return (
         <DashboardLayout>
@@ -100,7 +104,6 @@ function TopicListPage() {
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
                 <button
                     onClick={() => setModal(true)}
-                    aria-label="Upload new topic PDF"
                     className="btn-primary"
                     style={{ padding: "10px 22px", fontSize: "0.9rem" }}
                 >
@@ -109,21 +112,49 @@ function TopicListPage() {
             </div>
 
             {/* Topic list */}
-            {topics.length === 0 && !loading ? (
-                <div className="empty-state">
-                    <div className="empty-icon">📄</div>
-                    <h3>No topics yet</h3>
-                    <p>Upload a PDF to create your first topic</p>
-                </div>
-            ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {topics.map(topic => {
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Active Uploads */}
+                {currentUploads.map(upload => (
+                    <article
+                        key={upload.id}
+                        className="card"
+                        style={{
+                            padding: "18px 22px",
+                            background: "rgba(99,102,241,0.03)",
+                            border: "1px dashed var(--color-primary)",
+                            opacity: 0.8
+                        }}
+                    >
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <h3 style={{ fontSize: "0.97rem", fontWeight: 700, margin: 0 }}>
+                                {upload.title} <span style={{ fontSize: '0.75rem', fontWeight: 500, marginLeft: 8 }}>· Uploading...</span>
+                            </h3>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--color-primary)' }}>{upload.progress}%</span>
+                        </div>
+                        <div style={{ height: 6, background: 'var(--bg-surface-3)', borderRadius: 3, overflow: 'hidden' }}>
+                            <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${upload.progress}%` }}
+                                style={{ height: '100%', background: 'var(--color-primary)' }}
+                            />
+                        </div>
+                    </article>
+                ))}
+
+                {/* Existing Topics */}
+                {topics.length === 0 && currentUploads.length === 0 && !loading ? (
+                    <div className="empty-state">
+                        <div className="empty-icon">📄</div>
+                        <h3>No topics yet</h3>
+                        <p>Upload a PDF to create your first topic</p>
+                    </div>
+                ) : (
+                    topics.map(topic => {
                         const tType = TYPE_MAP[topic.topic_type] || TYPE_MAP.theory;
                         return (
                             <article
                                 key={topic.id}
                                 className="card animate-fadeIn"
-                                aria-label={`Topic: ${topic.title}`}
                                 style={{
                                     padding: "18px 22px",
                                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
@@ -143,14 +174,12 @@ function TopicListPage() {
                                 <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                     {topic.file_path && (
                                         <button onClick={() => handleViewPdf(topic.file_path, topic.title)}
-                                            aria-label={`View PDF for ${topic.title}`}
                                             className="btn-secondary" style={{ padding: "8px 18px", fontSize: "0.85rem" }}>
                                             📄 View Topic
                                         </button>
                                     )}
                                     <Link
                                         to={`/student/assessment/${topic.id}`}
-                                        aria-label={`Start assessment for ${topic.title}`}
                                         className="btn-primary"
                                         style={{ padding: "8px 18px", fontSize: "0.85rem", display: "inline-flex", alignItems: "center" }}
                                     >
@@ -158,7 +187,6 @@ function TopicListPage() {
                                     </Link>
                                     <button
                                         onClick={() => setDeleteModal({ isOpen: true, topicId: topic.id, topicName: topic.title })}
-                                        aria-label={`Delete ${topic.title}`}
                                         className="btn-danger"
                                         style={{ padding: "8px 14px", fontSize: "0.82rem" }}
                                     >
@@ -167,9 +195,9 @@ function TopicListPage() {
                                 </div>
                             </article>
                         );
-                    })}
-                </div>
-            )}
+                    })
+                )}
+            </div>
 
             {/* Upload Modal */}
             <Modal isOpen={modal} onClose={() => setModal(false)} title="Upload Topic PDF">
@@ -205,8 +233,8 @@ function TopicListPage() {
                             required
                         />
                     </div>
-                    <button type="submit" disabled={saving} className="btn-primary" style={{ padding: "12px", fontSize: "0.95rem" }}>
-                        {saving ? <><span className="spinner" /> Uploading…</> : "Upload Topic"}
+                    <button type="submit" className="btn-primary" style={{ padding: "12px", fontSize: "0.95rem" }}>
+                        Start Upload
                     </button>
                 </form>
             </Modal>

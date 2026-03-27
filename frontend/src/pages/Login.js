@@ -4,18 +4,17 @@ import { saveToken } from "../services/auth";
 import { useNavigate, Link } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { getErrorMessage } from "../services/errorUtils";
+import ThemeToggle from "../components/bits/ThemeToggle";
 
 function Login() {
   const navigate = useNavigate();
   const [data, setData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
 
   useEffect(() => {
     document.title = "Sign In — ReviseAI";
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+  }, []);
 
   const handleChange = (e) => {
     setData({ ...data, [e.target.name]: e.target.value });
@@ -40,12 +39,6 @@ function Login() {
     }
   };
 
-  const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
-    setTheme(next);
-    localStorage.setItem("theme", next);
-  };
-
   return (
     <div style={{
       minHeight: "100vh",
@@ -56,7 +49,7 @@ function Login() {
       {/* ── Left brand panel ── */}
       <div style={{
         flex: "0 0 42%",
-        background: "linear-gradient(145deg, #2961FF 0%, #6366f1 60%, #8b5cf6 100%)",
+        background: "linear-gradient(145deg, var(--color-primary) 0%, var(--color-accent) 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -128,18 +121,9 @@ function Login() {
         position: "relative",
       }}>
         {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          aria-label="Toggle theme"
-          style={{
-            position: "absolute", top: 20, right: 20,
-            background: "var(--bg-surface)", color: "var(--text-secondary)",
-            border: "1.5px solid var(--border-color)",
-            width: 38, height: 38, borderRadius: "50%",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "1rem",
-          }}
-        >{theme === "dark" ? "☀️" : "🌙"}</button>
+        <div style={{ position: "absolute", top: 20, right: 20 }}>
+          <ThemeToggle />
+        </div>
 
         <main style={{ width: "100%", maxWidth: 400 }} className="animate-scaleIn">
           <div style={{ marginBottom: 36 }}>
@@ -179,20 +163,11 @@ function Login() {
               <div className="alert-error animate-fadeIn" role="alert">{error}</div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary"
-              style={{
-                width: "100%", padding: "14px",
-                fontSize: "1rem", fontWeight: 700,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                marginTop: 4,
-              }}
-            >
-              {loading ? (
-                <><span className="spinner" />Signing in…</>
-              ) : "Sign in →"}
+            <button type="submit" disabled={loading} className="btn-primary" style={{
+              width: "100%", padding: "14px", fontSize: "1rem", marginTop: 10,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 10
+            }}>
+              {loading ? "Signing in..." : "Access Dashboard"}
             </button>
           </form>
         </main>
