@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { jwtDecode } from 'jwt-decode';
+import { getRevisionDashboard, getScheduledAssessments } from '../services/dashboardService';
 
 const studentLinks = [
     { to: '/student', label: 'Dashboard', icon: 'fi fi-rr-home', section: 'main' },
     { to: '/student/subjects', label: 'My Subjects', icon: 'fi fi-rr-book-alt', section: 'main' },
-    { to: '/student/manage-revisions', label: 'Revisions', icon: 'fi fi-rr-clipboard-list-check', section: 'main' },
+    { to: '/student/manage-revisions', label: 'Revisions', icon: 'fi fi-rr-clipboard-list-check', section: 'main', badgeKey: 'revisions' },
+    { to: '/student/assessments', label: 'Assessments', icon: 'fi fi-rr-peseta-sign', section: 'main', badgeKey: 'assessments' },
     { to: '/student/enroll', label: 'Explore', icon: 'fi fi-rr-search', section: 'main' },
     { to: '/chat', label: 'Groups', icon: 'fi fi-rr-users-alt', section: 'tools' },
     { to: '/profile', label: 'Profile', icon: 'fi fi-rr-user', section: 'account' },
@@ -33,7 +35,33 @@ const itemVariants = {
     show: { opacity: 1, x: 0, transition: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] } },
 };
 
-function SidebarNavItem({ to, label, icon, end, onClose }) {
+function Badge({ count }) {
+    if (!count || count === 0) return null;
+    return (
+        <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: 18,
+            height: 18,
+            padding: '0 5px',
+            borderRadius: 99,
+            background: count > 0 ? '#ef4444' : '#f59e0b',
+            color: '#fff',
+            fontSize: '0.65rem',
+            fontWeight: 800,
+            lineHeight: 1,
+            marginLeft: 'auto',
+            flexShrink: 0,
+            boxShadow: '0 0 6px rgba(239,68,68,0.5)',
+            animation: 'pulse 2s infinite',
+        }}>
+            {count > 99 ? '99+' : count}
+        </span>
+    );
+}
+
+function SidebarNavItem({ to, label, icon, end, onClose, badge }) {
     return (
         <motion.div variants={itemVariants}>
             <NavLink
@@ -97,7 +125,8 @@ function SidebarNavItem({ to, label, icon, end, onClose }) {
                                 transition: 'color 180ms ease',
                             }}
                         />
-                        <span style={{ letterSpacing: '-0.01em' }}>{label}</span>
+                        <span style={{ letterSpacing: '-0.01em', flex: 1 }}>{label}</span>
+                        {badge > 0 && <Badge count={badge} />}
                     </>
                 )}
             </NavLink>
@@ -108,10 +137,13 @@ function SidebarNavItem({ to, label, icon, end, onClose }) {
 function Sidebar({ role, isOpen, onClose }) {
     const links = role === 'instructor' ? instructorLinks : studentLinks;
     const roleLabel = role === 'instructor' ? 'Instructor' : 'Student';
-    const roleIcon = role === 'instructor' ? 'fi fi-rr-chalkboard-user' : 'fi fi-rr-graduation-cap';
 
     const [userName, setUserName] = useState('');
     const initials = userName ? userName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U';
+
+    // Badge counts
+    const [revisionBadge, setRevisionBadge] = useState(0);
+    const [assessmentBadge, setAssessmentBadge] = useState(0);
 
     useEffect(() => {
         const cached = localStorage.getItem('user_name');
@@ -124,6 +156,42 @@ function Sidebar({ role, isOpen, onClose }) {
             }
         } catch { }
     }, []);
+
+    // Fetch badge counts for student role only
+    useEffect(() => {
+        if (role !== 'student') return;
+
+        const fetchBadges = async () => {
+            try {
+                const [revRes, assRes] = await Promise.all([
+                    getRevisionDashboard().catch(() => ({ data: [] })),
+                    getScheduledAssessments().catch(() => ({ data: [] })),
+                ]);
+                const revisions = revRes.data || [];
+                const assessments = assRes.data || [];
+
+                const revCount = revisions.filter(r =>
+                    r.status === 'due_today' || r.status === 'overdue'
+                ).length;
+                const assCount = assessments.filter(a =>
+                    a.date_status === 'today' || a.date_status === 'overdue'
+                ).length;
+
+                setRevisionBadge(revCount);
+                setAssessmentBadge(assCount);
+            } catch { }
+        };
+
+        fetchBadges();
+        // Refresh badges every 5 minutes
+        const interval = setInterval(fetchBadges, 5 * 60 * 1000);
+        return () => clearInterval(interval);
+    }, [role]);
+
+    const badgeMap = {
+        revisions: revisionBadge,
+        assessments: assessmentBadge,
+    };
 
     // Group links by section, preserving first-seen order
     const sections = [];
@@ -178,7 +246,7 @@ function Sidebar({ role, isOpen, onClose }) {
                             >
                                 {sectionLabels[section]}
                             </motion.div>
-                            {sectionLinks.map(({ to, label, icon }) => (
+                            {sectionLinks.map(({ to, label, icon, badgeKey }) => (
                                 <SidebarNavItem
                                     key={to}
                                     to={to}
@@ -186,6 +254,7 @@ function Sidebar({ role, isOpen, onClose }) {
                                     icon={icon}
                                     end={to === '/student' || to === '/instructor'}
                                     onClose={onClose}
+                                    badge={badgeKey ? badgeMap[badgeKey] : 0}
                                 />
                             ))}
                         </div>

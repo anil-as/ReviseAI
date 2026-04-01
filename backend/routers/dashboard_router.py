@@ -134,6 +134,7 @@ def get_revision_dashboard(
             "topic_title": topic.title,
             "topic_file_path": topic.file_path,
             "subject_id": topic.subject_id,
+            "subject_title": subject.title if subject else f"Subject #{topic.subject_id}",
             "is_enrolled": is_enrolled,
             "memory_strength": progress.memory_strength,
             "last_revision_date": progress.last_revision_date,

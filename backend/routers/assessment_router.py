@@ -16,11 +16,20 @@ router = APIRouter(
 # -------------------------------------------------------------------
 # SCHEDULING CONSTANTS
 # -------------------------------------------------------------------
-REVISION_DAILY_CAP     = 3   # max revision events allowed on a single day
-ASSESSMENT_GAP         = 1   # days between revision and assessment
+# Total workload score allowed per day.
+# Score = revision_count + 0.5 × assessment_count
+# e.g. 3 revisions = 3.0 (full), 2 revisions + 2 assessments = 3.0 (full)
+DAILY_LOAD_CAP         = 3.0
+
+ASSESSMENT_GAP_MIN     = 1   # min days after revision before assessment is scheduled
+ASSESSMENT_GAP_MAX     = 3   # max days to search forward for a light assessment slot
+
 MAX_SHIFT_HIGH_PRI     = 3   # max forward-shift (days) for weak topics  (memory < 0.4)
 MAX_SHIFT_MED_PRI      = 6   # max forward-shift for medium topics       (0.4 ≤ mem < 0.6)
 MAX_SHIFT_LOW_PRI      = 10  # max forward-shift for strong topics       (mem ≥ 0.6)
+
+# Keep this alias so any code that imports ASSESSMENT_GAP still works
+ASSESSMENT_GAP         = ASSESSMENT_GAP_MIN
 
 # -------------------------------------------------------------------
 # SMART SCHEDULING HELPER
@@ -28,59 +37,106 @@ MAX_SHIFT_LOW_PRI      = 10  # max forward-shift for strong topics       (mem �
 def _smart_schedule(
     db: Session,
     user_id: int,
-    base_date,          # datetime.date — ideal revision date from SR interval
+    base_date,            # datetime.date — ideal revision date from SR interval
     memory_strength: float,
     topic_id: int,
     topic_title: str,
     base_datetime: datetime,  # full datetime for time-of-day preservation
 ) -> tuple:
     """
-    Find the best available revision date for a topic, respecting:
-    - Daily revision cap (REVISION_DAILY_CAP topics per day max)
-    - Priority: high-priority / weak topics shift ≤ MAX_SHIFT_HIGH_PRI days so
-      they are reviewed promptly; easy topics can shift further.
-    - Separate assessment date = revision_date + ASSESSMENT_GAP days.
+    Calendar-aware, workload-balanced scheduling.
+
+    Algorithm:
+      1. Pre-load ALL calendar events for this user in the look-ahead window
+         (single DB query — no N+1 problem).
+      2. Build a workload-score map per day:
+             score(day) = revision_count(day) + 0.5 × assessment_count(day)
+         A day is "full" when score >= DAILY_LOAD_CAP (default 3.0).
+      3. Walk forward from base_date up to max_shift days and pick the first
+         day whose score < DAILY_LOAD_CAP as the REVISION date.
+      4. Independently pick the ASSESSMENT date as the lightly-loaded day in
+         [revision_day + ASSESSMENT_GAP_MIN, revision_day + ASSESSMENT_GAP_MAX].
+         This prevents assessments from piling onto already-busy days.
+      5. If no light day exists within the allowed window, use the boundary
+         date as a graceful fallback (no infinite deferrals).
 
     Returns (revision_datetime, assessment_datetime).
     """
-    # Determine max shift for this topic based on memory strength
+    # ── 1. Determine the forward-shift budget for this topic ─────────────────
     if memory_strength < 0.4:
-        max_shift = MAX_SHIFT_HIGH_PRI
+        max_shift = MAX_SHIFT_HIGH_PRI   # weak topics: review soon, small window
     elif memory_strength < 0.6:
         max_shift = MAX_SHIFT_MED_PRI
     else:
-        max_shift = MAX_SHIFT_LOW_PRI
+        max_shift = MAX_SHIFT_LOW_PRI    # strong topics: more scheduling flexibility
 
-    candidate = base_date
+    # ── 2. Pre-load all events in the look-ahead window (single query) ───────
+    window_start = base_date
+    window_end   = base_date + timedelta(days=max_shift + ASSESSMENT_GAP_MAX + 1)
 
-    for _ in range(max_shift + 1):
-        # Count ONLY revision events (identified by emoji prefix) on candidate day
-        revision_count = db.query(models.CalendarEvent).filter(
-            models.CalendarEvent.user_id == user_id,
-            models.CalendarEvent.date == candidate.isoformat(),
-            models.CalendarEvent.title.like("📅 Revise:%"),
-        ).count()
+    # Convert date objects to ISO strings for comparison (CalendarEvent.date is String)
+    window_start_str = window_start.isoformat()
+    window_end_str   = window_end.isoformat()
 
-        if revision_count < REVISION_DAILY_CAP:
-            break  # found a slot
+    existing_events = db.query(models.CalendarEvent).filter(
+        models.CalendarEvent.user_id == user_id,
+        models.CalendarEvent.date >= window_start_str,
+        models.CalendarEvent.date <= window_end_str,
+        # Exclude old entries for this SAME topic (they'll be replaced below)
+        models.CalendarEvent.title.notin_([
+            f"📅 Revise: {topic_title}",
+            f"📝 Assess: {topic_title}",
+        ]),
+    ).all()
 
-        candidate = candidate + timedelta(days=1)
-    # If all slots within max_shift are full, candidate stays at base_date + max_shift
-    # (graceful degradation – we place it anyway)
+    # ── 3. Build workload score map ─────────────────────────────────────────
+    from collections import defaultdict
+    workload: dict = defaultdict(float)
+    for event in existing_events:
+        if event.title.startswith("📅 Revise:"):
+            workload[event.date] += 1.0    # revision = full unit of overhead
+        elif event.title.startswith("📝 Assess:"):
+            workload[event.date] += 0.5    # assessment = half unit of overhead
+        # User-created custom events are intentionally ignored —
+        # they represent external commitments we shouldn't reschedule around.
 
-    # Build full datetimes (keep the original time-of-day)
-    revision_dt = datetime(
-        candidate.year, candidate.month, candidate.day,
-        base_datetime.hour, base_datetime.minute, base_datetime.second
-    )
-    assessment_date = candidate + timedelta(days=ASSESSMENT_GAP)
-    assessment_dt = datetime(
-        assessment_date.year, assessment_date.month, assessment_date.day,
-        base_datetime.hour, base_datetime.minute, base_datetime.second
-    )
+    # ── 4. Pick best REVISION date ──────────────────────────────────────────
+    revision_day = base_date  # default: fallback to base if everything is full
+    for offset in range(max_shift + 1):
+        candidate = base_date + timedelta(days=offset)
+        if workload[candidate.isoformat()] < DAILY_LOAD_CAP:
+            revision_day = candidate
+            break
+    else:
+        # All days up to max_shift are at capacity — place at furthest allowed
+        revision_day = base_date + timedelta(days=max_shift)
 
-    # ---- Calendar events ------------------------------------------------
-    # Remove old revision + assessment events for this specific topic
+    # ── 5. Pick best ASSESSMENT date ────────────────────────────────────────
+    # Iterate [+GAP_MIN … +GAP_MAX] days after revision and pick the lightest.
+    assessment_day = revision_day + timedelta(days=ASSESSMENT_GAP_MIN)  # safe fallback
+    best_score = float("inf")
+
+    for gap in range(ASSESSMENT_GAP_MIN, ASSESSMENT_GAP_MAX + 1):
+        candidate = revision_day + timedelta(days=gap)
+        score = workload[candidate.isoformat()]
+        if score < best_score:
+            best_score = score
+            assessment_day = candidate
+            if score == 0.0:
+                break  # perfect empty day found — stop searching
+
+    # ── 6. Build full datetimes (preserve original time-of-day) ─────────────
+    def _to_dt(d):
+        return datetime(
+            d.year, d.month, d.day,
+            base_datetime.hour, base_datetime.minute, base_datetime.second
+        )
+
+    revision_dt   = _to_dt(revision_day)
+    assessment_dt = _to_dt(assessment_day)
+
+    # ── 7. Update calendar events ────────────────────────────────────────────
+    # Delete stale entries for this topic first
     db.query(models.CalendarEvent).filter(
         models.CalendarEvent.user_id == user_id,
         models.CalendarEvent.title.in_([
@@ -89,18 +145,16 @@ def _smart_schedule(
         ])
     ).delete(synchronize_session=False)
 
-    # Revision event
+    # Add the new, load-balanced events
     db.add(models.CalendarEvent(
         user_id=user_id,
-        date=candidate.isoformat(),
+        date=revision_day.isoformat(),
         title=f"📅 Revise: {topic_title}",
         color="#6366f1",
     ))
-
-    # Assessment event (separate day)
     db.add(models.CalendarEvent(
         user_id=user_id,
-        date=assessment_date.isoformat(),
+        date=assessment_day.isoformat(),
         title=f"📝 Assess: {topic_title}",
         color="#f59e0b",
     ))
